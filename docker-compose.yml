@@ -1,0 +1,82 @@
+services:
+  # Infrastructure
+  postgres:
+    image: postgis/postgis:15-3.4
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-planetcdc}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-planetcdc}
+      POSTGRES_DB: ${POSTGRES_DB:-planetcdc}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./infra/postgres/init.sql:/docker-entrypoint-initdb.d/10_postgis.sql
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${POSTGRES_USER:-planetcdc} -d ${POSTGRES_DB:-planetcdc}",
+        ]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+    restart: unless-stopped
+
+  redis:
+    image: redis:7-alpine
+    ports:
+      - "6379:6379"
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 5
+    restart: unless-stopped
+
+  # Application services
+  api:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.api
+    ports: ["8000:8000"]
+    env_file: .env
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+
+  worker:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    env_file: .env
+    environment:
+      SKIP_MIGRATIONS: "true"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+
+  celery-beat:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile.worker
+    command: celery -A worker.celery_app beat --loglevel=info
+    env_file: .env
+    environment:
+      SKIP_MIGRATIONS: "true"
+    depends_on:
+      postgres: { condition: service_healthy }
+      redis: { condition: service_healthy }
+    restart: unless-stopped
+
+  frontend:
+    build: ./frontend
+    ports: ["3000:3000"]
+    depends_on:
+      api: { condition: service_started }
+    restart: unless-stopped
+
+volumes:
+  postgres_data:

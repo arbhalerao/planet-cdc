@@ -1,0 +1,463 @@
+import { useState } from "react";
+import { useNavigate } from "react-router-dom";
+import {
+  useCollections,
+  useCreateWorkflow,
+  useModels,
+} from "../api/queries";
+import Map from "../components/Map";
+import type { CollectionInfo, ModelInfo, ThresholdBand } from "../api/types";
+
+// types
+
+interface ThresholdOverride {
+  green_min: number; green_max: number;
+  yellow_min: number; yellow_max: number;
+  red_min: number; red_max: number;
+}
+type ModelThresholds = Record<string, ThresholdOverride>;
+type AllThresholds = Record<string, ModelThresholds>;
+
+// helpers
+
+function defaultOverrides(thresholds: Record<string, ThresholdBand>): ModelThresholds {
+  return Object.fromEntries(
+    Object.entries(thresholds).map(([score, t]) => [
+      score,
+      {
+        green_min: t.green[0], green_max: t.green[1],
+        yellow_min: t.yellow[0], yellow_max: t.yellow[1],
+        red_min: t.red[0], red_max: t.red[1]
+      },
+    ])
+  );
+}
+
+/** Given selected models, compute per-collection status. */
+function collectionStatus(col: CollectionInfo, selectedModels: ModelInfo[]) {
+  if (selectedModels.length === 0) {
+    return { enabled: false, allIncompatible: true, badges: [] as Badge[] };
+  }
+  const badges: Badge[] = selectedModels.map((m) => {
+    const c = m.compatible_collections[col.slug] ?? { level: "incompatible", reasons: ["Not declared compatible"] };
+    return { modelSlug: m.slug, level: c.level, reasons: c.reasons };
+  });
+  const allIncompatible = badges.every((b) => b.level === "incompatible");
+  return { enabled: !allIncompatible, allIncompatible, badges };
+}
+
+interface Badge { modelSlug: string; level: string; reasons: string[] }
+
+// sub-components
+
+const COMPAT_STYLES: Record<string, string> = {
+  full: "bg-green-900/60 text-green-300 border-green-800",
+  partial: "bg-yellow-900/60 text-yellow-300 border-yellow-800",
+  incompatible: "bg-red-900/50 text-red-400 border-red-900",
+};
+
+function CompatBadge({ level, reasons, label }: { level: string; reasons: string[]; label?: string }) {
+  const cls = COMPAT_STYLES[level] ?? "bg-gray-800 text-gray-400 border-gray-700";
+  return (
+    <span className={`relative group inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded border ${cls}`}>
+      {label ?? level}
+      {reasons.length > 0 && (
+        <>
+          <span className="cursor-default underline decoration-dotted">!</span>
+          <span className="pointer-events-none absolute left-0 top-full mt-1 z-20 w-60 rounded bg-gray-950 border border-gray-700 px-2 py-1.5 text-xs text-gray-300 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-normal">
+            {reasons.map((r, i) => <span key={i} className="block">{r}</span>)}
+          </span>
+        </>
+      )}
+    </span>
+  );
+}
+
+function ThresholdEditor({ model, overrides, onChange }: {
+  model: ModelInfo;
+  overrides: ModelThresholds;
+  onChange: (next: ModelThresholds) => void;
+}) {
+  function set(score: string, field: keyof ThresholdOverride, raw: string) {
+    const val = parseFloat(raw);
+    if (!isNaN(val)) onChange({ ...overrides, [score]: { ...overrides[score], [field]: val } });
+  }
+
+  return (
+    <div className="mt-3 border-t border-gray-700 pt-3 space-y-4">
+      <div className="flex items-center justify-between">
+        <span className="text-xs font-medium text-gray-300">Thresholds</span>
+        <button type="button" onClick={() => onChange(defaultOverrides(model.default_thresholds))}
+          className="text-xs text-gray-500 hover:text-gray-300">Reset defaults</button>
+      </div>
+      {Object.entries(model.default_thresholds).map(([score]) => {
+        const ov = overrides[score];
+        if (!ov) return null;
+        return (
+          <div key={score}>
+            <div className="text-xs text-gray-400 mb-2 font-medium">{score}</div>
+            <div className="grid grid-cols-3 gap-2 text-xs">
+              {(["green", "yellow", "red"] as const).map((color) => (
+                <div key={color}>
+                  <div className={`mb-1 font-medium ${color === "green" ? "text-green-400" : color === "yellow" ? "text-yellow-400" : "text-red-400"}`}>{color}</div>
+                  <div className="flex gap-1 items-center">
+                    <input type="number" step="0.01" value={ov[`${color}_min` as keyof ThresholdOverride]}
+                      onChange={(e) => set(score, `${color}_min` as keyof ThresholdOverride, e.target.value)}
+                      className="w-full bg-gray-800 border border-gray-700 rounded px-1.5 py-1 text-xs text-gray-200 focus:outline-none focus:border-brand-500" />
+                    <span className="text-gray-600">–</span>
+                    <input type="number" step="0.01" value={ov[`${color}_max` as keyof ThresholdOverride]}
+                      onChange={(e) => set(score, `${color}_max` as keyof ThresholdOverride, e.target.value)}
+                      className="w-full bg-gray-800 border border-gray-700 rounded px-1.5 py-1 text-xs text-gray-200 focus:outline-none focus:border-brand-500" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+// main page
+
+export default function CreateWorkflowPage() {
+  const navigate = useNavigate();
+  const { data: collections } = useCollections();
+  const { data: models } = useModels();
+  const createWorkflow = useCreateWorkflow();
+
+  // form fields
+  const [name, setName] = useState("");
+  const [mode, setMode] = useState<"historical" | "fixed_future">("historical");
+  const [timeStart, setTimeStart] = useState("");
+  const [timeEnd, setTimeEnd] = useState("");
+  const [pollInterval, setPollInterval] = useState<number | null>(null);
+
+  // AOI
+  const [drawnGeometry, setDrawnGeometry] = useState<GeoJSON.Polygon | null>(null);
+  const [drawnWithTool, setDrawnWithTool] = useState<"rectangle" | "polygon" | "point" | null>(null);
+  const [aoiFilterMode, setAoiFilterMode] = useState<"intersects" | "enclosed">("intersects");
+
+  const isPoint = drawnWithTool === "point";
+
+  // model-first selections
+  const [selectedModelSlugs, setSelectedModelSlugs] = useState<string[]>([]);
+  const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
+  const [thresholdOverrides, setThresholdOverrides] = useState<AllThresholds>({});
+  const [expandedThreshold, setExpandedThreshold] = useState<string | null>(null);
+
+  const selectedModels = (models ?? []).filter((m) => selectedModelSlugs.includes(m.slug));
+
+  // model select/deselect
+
+  function selectModel(m: ModelInfo) {
+    setSelectedModelSlugs((prev) => [...prev, m.slug]);
+    setThresholdOverrides((prev) => ({ ...prev, [m.slug]: defaultOverrides(m.default_thresholds) }));
+
+    // auto-enable collections compatible with the new model (not already selected)
+    const toAdd = (collections ?? [])
+      .filter((col) => {
+        const c = m.compatible_collections[col.slug];
+        return c && c.level !== "incompatible";
+      })
+      .map((col) => col.slug);
+    setSelectedCollections((prev) => [...new Set([...prev, ...toAdd])]);
+  }
+
+  function deselectModel(slug: string) {
+    const remaining = selectedModelSlugs.filter((s) => s !== slug);
+    setSelectedModelSlugs(remaining);
+    if (expandedThreshold === slug) setExpandedThreshold(null);
+    setThresholdOverrides((prev) => { const n = { ...prev }; delete n[slug]; return n; });
+
+    // drop collections now incompatible with ALL remaining models
+    if (remaining.length === 0) {
+      setSelectedCollections([]);
+    } else {
+      const remainingModels = (models ?? []).filter((m) => remaining.includes(m.slug));
+      setSelectedCollections((prev) =>
+        prev.filter((colSlug) =>
+          remainingModels.some((m) => {
+            const c = m.compatible_collections[colSlug];
+            return c && c.level !== "incompatible";
+          })
+        )
+      );
+    }
+  }
+
+  function toggleModel(m: ModelInfo) {
+    selectedModelSlugs.includes(m.slug) ? deselectModel(m.slug) : selectModel(m);
+  }
+
+  function toggleCollection(slug: string, enabled: boolean) {
+    if (!enabled) return;
+    setSelectedCollections((prev) =>
+      prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]
+    );
+  }
+
+  // submit
+
+  async function handleSubmit(e: React.FormEvent) {
+    e.preventDefault();
+    const wf = await createWorkflow.mutateAsync({
+      name,
+      geometry: drawnGeometry,
+      aoi_filter_mode: aoiFilterMode,
+      time_mode: mode,
+      time_start: new Date(timeStart).toISOString(),
+      time_end: new Date(timeEnd).toISOString(),
+      poll_interval_minutes: mode === "fixed_future" ? pollInterval : null,
+      collection_slugs: selectedCollections,
+      models: selectedModelSlugs.map((slug) => ({
+        model_slug: slug,
+        thresholds: thresholdOverrides[slug] ?? undefined,
+      })),
+    });
+    navigate(`/workflows/${wf.id}`);
+  }
+
+  const canSubmit =
+    !!name && !!drawnGeometry && !!timeStart && !!timeEnd &&
+    selectedModelSlugs.length > 0 && selectedCollections.length > 0;
+
+  return (
+    <div className="p-6 max-w-4xl mx-auto">
+      <h1 className="text-xl font-semibold mb-6">New workflow</h1>
+
+      <form onSubmit={handleSubmit} className="space-y-6">
+
+        {/* 1. Details */}
+        <section className="bg-gray-900 border border-gray-800 rounded-lg p-5 space-y-4">
+          <h2 className="font-medium text-gray-200">Details</h2>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm mb-1 text-gray-300">Name</label>
+              <input required value={name} onChange={(e) => setName(e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-500" />
+            </div>
+            <div>
+              <label className="block text-sm mb-1 text-gray-300">Mode</label>
+              <select value={mode} onChange={(e) => setMode(e.target.value as "historical" | "fixed_future")}
+                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-500">
+                <option value="historical">Historical</option>
+                <option value="fixed_future">Fixed future</option>
+              </select>
+            </div>
+          </div>
+          <div className="grid grid-cols-2 gap-4">
+            <div>
+              <label className="block text-sm mb-1 text-gray-300">Time start</label>
+              <input type="date" required value={timeStart} onChange={(e) => setTimeStart(e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-500" />
+            </div>
+            <div>
+              <label className="block text-sm mb-1 text-gray-300">Time end</label>
+              <input type="date" required value={timeEnd} onChange={(e) => setTimeEnd(e.target.value)}
+                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-500" />
+            </div>
+          </div>
+
+          {mode === "fixed_future" && (
+            <div>
+              <label className="block text-sm mb-1 text-gray-300">
+                Monitor interval
+                <span className="ml-1.5 text-gray-500 font-normal text-xs">— how often to fetch new scenes</span>
+              </label>
+              <div className="flex gap-2 flex-wrap">
+                {([
+                  { label: "Off", value: null },
+                  { label: "1 hour", value: 60 },
+                  { label: "6 hours", value: 360 },
+                  { label: "12 hours", value: 720 },
+                  { label: "Daily", value: 1440 },
+                  { label: "Weekly", value: 10080 },
+                ] as { label: string; value: number | null }[]).map(({ label, value }) => (
+                  <button
+                    key={label}
+                    type="button"
+                    onClick={() => setPollInterval(value)}
+                    className={`px-3 py-1.5 rounded border text-xs transition-colors ${pollInterval === value
+                      ? "border-brand-500 bg-brand-950/30 text-white"
+                      : "border-gray-700 text-gray-400 hover:border-gray-500"
+                      }`}
+                  >
+                    {label}
+                  </button>
+                ))}
+              </div>
+              {pollInterval === null && (
+                <p className="text-xs text-gray-500 mt-1.5">No automatic re-fetching. You can trigger it manually.</p>
+              )}
+            </div>
+          )}
+        </section>
+
+        {/* 2. AOI */}
+        <section className="bg-gray-900 border border-gray-800 rounded-lg p-5 space-y-3">
+          <h2 className="font-medium text-gray-200">Area of Interest</h2>
+          <Map
+            geometry={drawnGeometry}
+            onDraw={(geom, tool) => { setDrawnGeometry(geom); setDrawnWithTool(tool); if (tool === "point") setAoiFilterMode("intersects"); }}
+            onClear={() => { setDrawnGeometry(null); setDrawnWithTool(null); }}
+            className="h-96 w-full"
+          />
+
+          {/* Scene filter mode */}
+          <div>
+            <p className="text-xs text-gray-400 mb-2">Scene filter</p>
+            {isPoint ? (
+              <p className="text-xs text-gray-500">Point AOI — scenes containing the point (intersects).</p>
+            ) : (
+              <div className="flex gap-2">
+                {([
+                  { value: "intersects", label: "Intersects", desc: "Any overlap with the AOI" },
+                  { value: "enclosed", label: "Enclosed", desc: "≥80% of scene within the AOI" },
+                ] as const).map(({ value, label, desc }) => (
+                  <button
+                    key={value}
+                    type="button"
+                    onClick={() => setAoiFilterMode(value)}
+                    className={`flex-1 px-3 py-2 rounded border text-left transition-colors ${aoiFilterMode === value
+                      ? "border-brand-500 bg-brand-950/30 text-white"
+                      : "border-gray-700 text-gray-400 hover:border-gray-500"
+                      }`}
+                  >
+                    <div className="text-xs font-medium">{label}</div>
+                    <div className="text-xs text-gray-500 mt-0.5">{desc}</div>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+        </section>
+
+        {/* 3. Models */}
+        <section className="bg-gray-900 border border-gray-800 rounded-lg p-5 space-y-3">
+          <h2 className="font-medium text-gray-200">Models</h2>
+          <p className="text-xs text-gray-500">Select one or more models. Compatible data sources will be shown below.</p>
+          <div className="space-y-2">
+            {models?.map((m) => {
+              const selected = selectedModelSlugs.includes(m.slug);
+              const thresholdOpen = expandedThreshold === m.slug;
+              return (
+                <div key={m.slug} className={`rounded border transition-colors ${selected ? "border-brand-600 bg-brand-950/20" : "border-gray-700"}`}>
+                  <label className="flex items-start gap-3 p-3 cursor-pointer">
+                    <input type="checkbox" checked={selected} onChange={() => toggleModel(m)} className="mt-0.5 accent-brand-500" />
+                    <div className="flex-1 min-w-0">
+                      <div className="text-sm font-medium">{m.name}</div>
+                      <div className="text-xs text-gray-400 mt-0.5">{m.description}</div>
+                      <div className="flex flex-wrap gap-3 mt-1 text-xs text-gray-500">
+                        <span>Bands: {m.required_bands.join(", ")}</span>
+                        <span>{m.max_cloud_cover != null ? `≤${m.max_cloud_cover}% cloud` : "no cloud filter"}</span>
+                      </div>
+                    </div>
+                    {selected && (
+                      <button type="button"
+                        onClick={(e) => { e.preventDefault(); setExpandedThreshold(thresholdOpen ? null : m.slug); }}
+                        className="text-xs text-gray-400 hover:text-gray-200 whitespace-nowrap mt-0.5">
+                        {thresholdOpen ? "Hide thresholds ▲" : "Edit thresholds ▼"}
+                      </button>
+                    )}
+                  </label>
+                  {selected && thresholdOpen && thresholdOverrides[m.slug] && (
+                    <div className="px-4 pb-4">
+                      <ThresholdEditor model={m} overrides={thresholdOverrides[m.slug]}
+                        onChange={(next) => setThresholdOverrides((all) => ({ ...all, [m.slug]: next }))} />
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
+
+        {/* 4. Collections (model-driven) */}
+        <section className="bg-gray-900 border border-gray-800 rounded-lg p-5 space-y-3">
+          <h2 className="font-medium text-gray-200">Data sources</h2>
+
+          {selectedModels.length === 0 ? (
+            <p className="text-sm text-gray-500">Select a model above to see compatible data sources.</p>
+          ) : (
+            <>
+              <p className="text-xs text-gray-500">
+                Sources are auto-enabled based on your model selection. Incompatible sources are disabled.
+              </p>
+              <div className="space-y-2">
+                {(collections ?? []).map((col) => {
+                  const { enabled, allIncompatible, badges } = collectionStatus(col, selectedModels);
+                  const checked = selectedCollections.includes(col.slug);
+
+                  return (
+                    <label
+                      key={col.slug}
+                      className={`flex items-start gap-3 p-3 rounded border transition-colors ${allIncompatible
+                        ? "border-gray-800 opacity-40 cursor-not-allowed"
+                        : "border-gray-700 cursor-pointer hover:border-gray-600"
+                        }`}
+                    >
+                      <input
+                        type="checkbox"
+                        checked={checked && enabled}
+                        disabled={!enabled}
+                        onChange={() => toggleCollection(col.slug, enabled)}
+                        className="mt-0.5 accent-brand-500"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-sm font-medium">{col.display_name}</span>
+                          <span className="text-xs text-gray-500">{col.processing_level} · {col.resolution_m}m</span>
+                        </div>
+                        <div className="flex flex-wrap gap-1.5 mt-1.5">
+                          {badges.map((b) => (
+                            <span key={b.modelSlug} className="flex items-center gap-1">
+                              <span className="text-xs text-gray-600">{b.modelSlug.replace("-detector", "").replace("-", " ")}</span>
+                              <CompatBadge level={b.level} reasons={b.reasons} />
+                            </span>
+                          ))}
+                        </div>
+                        {allIncompatible && (
+                          <p className="text-xs text-red-400/70 mt-1">
+                            Not compatible with any selected model.
+                          </p>
+                        )}
+                      </div>
+                    </label>
+                  );
+                })}
+              </div>
+            </>
+          )}
+        </section>
+
+        {createWorkflow.error && (
+          <p className="text-red-400 text-sm">{(createWorkflow.error as Error).message}</p>
+        )}
+
+        <div className="flex gap-3">
+          <button type="submit" disabled={createWorkflow.isPending || !canSubmit}
+            className="px-6 py-2 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white rounded text-sm font-medium transition-colors">
+            {createWorkflow.isPending ? "Creating…" : "Create workflow"}
+          </button>
+          <button type="button" onClick={() => navigate("/workflows")}
+            className="px-6 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-sm transition-colors">
+            Cancel
+          </button>
+          {!canSubmit && name && (
+            <span className="text-xs text-gray-500 self-center">
+              {!drawnGeometry
+                ? "Draw an area of interest on the map"
+                : selectedModelSlugs.length === 0
+                  ? "Select at least one model"
+                  : selectedCollections.length === 0
+                    ? "No compatible data sources selected"
+                    : ""}
+            </span>
+          )}
+        </div>
+      </form>
+    </div>
+  );
+}
