@@ -47,6 +47,7 @@ export default function MapViewer({
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
   const loadedRef = useRef(false);
+  const fittedRef = useRef(false);
   const pendingOpsRef = useRef<Array<() => void>>([]);
 
   function runOrDefer(fn: () => void) {
@@ -163,7 +164,10 @@ export default function MapViewer({
       }
 
       // Fit bounds to AOI or items
-      fitBounds(map, aoi, items, fitToAoiOnly);
+      if (aoi || items.length > 0) {
+        fitBounds(map, aoi, items, fitToAoiOnly);
+        fittedRef.current = true;
+      }
 
       // Mark loaded and drain anything that was queued before load fired.
       loadedRef.current = true;
@@ -175,6 +179,7 @@ export default function MapViewer({
     mapRef.current = map;
     return () => {
       loadedRef.current = false;
+      fittedRef.current = false;
       pendingOpsRef.current = [];
       map.remove();
       mapRef.current = null;
@@ -209,7 +214,10 @@ export default function MapViewer({
         });
       }
 
-      fitBounds(map, aoi, items, fitToAoiOnly);
+      if (!fittedRef.current && (aoi || items.length > 0)) {
+        fitBounds(map, aoi, items, fitToAoiOnly);
+        fittedRef.current = true;
+      }
     };
 
     runOrDefer(apply);
@@ -245,7 +253,21 @@ export default function MapViewer({
     };
 
     runOrDefer(apply);
-  }, [rasterUrl, rasterOpacity]);
+  }, [rasterUrl]);
+
+  // Update raster opacity without recreating the layer
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const apply = () => {
+      if (map.getLayer(RASTER_LAYER_ID)) {
+        map.setPaintProperty(RASTER_LAYER_ID, "raster-opacity", rasterOpacity);
+      }
+    };
+
+    runOrDefer(apply);
+  }, [rasterOpacity]);
 
   return <div ref={containerRef} className={className} />;
 }

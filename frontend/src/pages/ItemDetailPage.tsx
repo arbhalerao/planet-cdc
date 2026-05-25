@@ -136,6 +136,8 @@ export default function ItemDetailPage() {
     return Array.from(out);
   }, [item, models]);
 
+  const [rasterOpacity, setRasterOpacity] = useState(0.75);
+
   const rasterUrl =
     activeBand && wfId && itemId ? buildRasterUrl(wfId, itemId, activeBand) : null;
 
@@ -254,12 +256,28 @@ export default function ItemDetailPage() {
                   </div>
                 );
               })}
+              {activeBand && (
+                <div className="flex items-center gap-2 ml-2">
+                  <span className="text-gray-500">Opacity:</span>
+                  <input
+                    type="range"
+                    min="0"
+                    max="1"
+                    step="0.05"
+                    value={rasterOpacity}
+                    onChange={(e) => setRasterOpacity(parseFloat(e.target.value))}
+                    className="w-24 accent-brand-500"
+                  />
+                  <span className="text-gray-400 w-8">{Math.round(rasterOpacity * 100)}%</span>
+                </div>
+              )}
             </div>
           )}
           <MapViewer
             aoi={wf?.aoi_geometry}
             items={[]}
             rasterUrl={rasterUrl}
+            rasterOpacity={rasterOpacity}
             fitToAoiOnly
             className="h-72 w-full rounded-lg overflow-hidden border border-gray-800"
           />
