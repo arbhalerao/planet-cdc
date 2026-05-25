@@ -7,8 +7,10 @@ const COLORS: Record<string, string> = {
   failed: "bg-red-900 text-red-300",
   queued: "bg-gray-800 text-gray-400",
   fetching: "bg-blue-900 text-blue-300",
+  uploading: "bg-cyan-900 text-cyan-300",
   scoring: "bg-purple-900 text-purple-300",
   fetch_failed: "bg-red-900 text-red-300",
+  upload_failed: "bg-red-900 text-red-300",
   score_failed: "bg-red-900 text-red-300",
   processed: "bg-green-900 text-green-300",
   success: "bg-green-900 text-green-300",
@@ -17,6 +19,7 @@ const COLORS: Record<string, string> = {
 const LABELS: Record<string, string> = {
   completed_with_errors: "partial",
   fetch_failed: "fetch failed",
+  upload_failed: "upload failed",
   score_failed: "score failed",
 };
 

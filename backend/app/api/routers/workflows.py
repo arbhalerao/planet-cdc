@@ -1,3 +1,4 @@
+import logging
 import uuid
 from datetime import datetime, timedelta, timezone
 from typing import Any
@@ -9,6 +10,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.api.deps import get_db
+from worker import storage
 from worker.compat import check_compatibility
 from worker.providers.registry import get_collection as get_provider_collection
 from app.db.models.aoi import Aoi
@@ -34,6 +36,7 @@ from worker.models.registry import get_model
 from worker.providers.registry import get_collection
 
 router = APIRouter(prefix="/workflows", tags=["workflows"])
+log = logging.getLogger(__name__)
 
 
 # helpers
@@ -414,3 +417,8 @@ async def delete_workflow(workflow_id: uuid.UUID, db: AsyncSession = Depends(get
         )
     await db.delete(workflow)
     await db.commit()
+
+    try:
+        storage.delete_workflow_prefix(workflow_id)
+    except Exception as exc:
+        log.warning("MinIO prefix cleanup failed for workflow %s: %s", workflow_id, exc)

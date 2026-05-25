@@ -45,14 +45,16 @@ class LSTDetector(BaseModel):
         "hot_fraction": ThresholdBand(green=(0.0, 0.1), yellow=(0.1, 0.3), red=(0.3, 1.0)),
     }
 
-    def run(self, inputs: dict[str, Any]) -> dict[str, Any]:
-        raw = inputs["bands"]["thermal1"]
+    derived_raster_names = ["lst"]
 
-        # Landsat C2 L2 thermal scaling -> Kelvin -> Celsius
+    def _lst_array(self, inputs: dict[str, Any]) -> np.ndarray:
+        raw = inputs["bands"]["thermal1"]
         temp_c = np.where(np.isnan(raw), np.nan, raw * _SCALE + _OFFSET - _KELVIN_TO_C)
         # Clip physically implausible values
-        temp_c = np.where((temp_c < -80.0) | (temp_c > 100.0), np.nan, temp_c)
+        return np.where((temp_c < -80.0) | (temp_c > 100.0), np.nan, temp_c).astype(np.float32)
 
+    def run(self, inputs: dict[str, Any]) -> dict[str, Any]:
+        temp_c = self._lst_array(inputs)
         valid = ~np.isnan(temp_c)
         n_valid = int(np.sum(valid))
 
@@ -65,3 +67,6 @@ class LSTDetector(BaseModel):
             "hot_fraction": round(float(np.sum(vals > _HOT_THRESHOLD_C) / len(vals)), 6),
             "valid_pixel_count": n_valid,
         }
+
+    def derived_rasters(self, inputs: dict[str, Any]) -> dict[str, np.ndarray]:
+        return {"lst": self._lst_array(inputs)}

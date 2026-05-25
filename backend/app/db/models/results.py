@@ -32,7 +32,7 @@ class WorkflowItem(Base):
     status: Mapped[WorkflowItemStatus] = mapped_column(
         SAEnum(WorkflowItemStatus, native_enum=False, length=20),
         nullable=False,
-        default=WorkflowItemStatus.discovered,
+        default=WorkflowItemStatus.queued,
     )
     overall_severity: Mapped[Severity | None] = mapped_column(
         SAEnum(Severity, native_enum=False, length=10), nullable=True

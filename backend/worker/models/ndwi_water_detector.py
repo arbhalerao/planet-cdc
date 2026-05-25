@@ -50,7 +50,9 @@ class NDWIWaterDetector(BaseModel):
         "water_fraction": ThresholdBand(green=(0.5, 1.0), yellow=(0.2, 0.5), red=(0.0, 0.2)),
     }
 
-    def run(self, inputs: dict[str, Any]) -> dict[str, Any]:
+    derived_raster_names = ["ndwi"]
+
+    def _ndwi_array(self, inputs: dict[str, Any]) -> np.ndarray:
         bands = inputs["bands"]
         collection_slug = inputs.get("collection_slug", "")
         scale, offset = _REFLECTANCE_SCALING.get(collection_slug, _DEFAULT_SCALING)
@@ -62,25 +64,23 @@ class NDWIWaterDetector(BaseModel):
         green = np.where((green < -0.5) | (green > 1.5), np.nan, green)
         nir = np.where((nir < -0.5) | (nir > 1.5), np.nan, nir)
 
-        valid = ~np.isnan(green) & ~np.isnan(nir)
+        denom = green + nir
+        return np.where(np.abs(denom) > 1e-10, (green - nir) / denom, np.nan).astype(np.float32)
+
+    def run(self, inputs: dict[str, Any]) -> dict[str, Any]:
+        ndwi = self._ndwi_array(inputs)
+        valid = ~np.isnan(ndwi)
         n_valid = int(np.sum(valid))
 
         if n_valid < _MIN_VALID_PIXELS:
             return {"ndwi_mean": None, "water_fraction": None, "valid_pixel_count": n_valid}
 
-        g = green[valid]
-        n = nir[valid]
-        denom = g + n
-        ndwi = np.where(np.abs(denom) > 1e-10, (g - n) / denom, np.nan)
-        ndwi_valid = ndwi[~np.isnan(ndwi)]
-
-        if len(ndwi_valid) == 0:
-            return {"ndwi_mean": None, "water_fraction": None, "valid_pixel_count": n_valid}
-
+        vals = ndwi[valid]
         return {
-            "ndwi_mean": round(float(np.mean(ndwi_valid)), 6),
-            "water_fraction": round(
-                float(np.sum(ndwi_valid > _WATER_NDWI_THRESHOLD) / len(ndwi_valid)), 6
-            ),
-            "valid_pixel_count": len(ndwi_valid),
+            "ndwi_mean": round(float(np.mean(vals)), 6),
+            "water_fraction": round(float(np.sum(vals > _WATER_NDWI_THRESHOLD) / len(vals)), 6),
+            "valid_pixel_count": n_valid,
         }
+
+    def derived_rasters(self, inputs: dict[str, Any]) -> dict[str, np.ndarray]:
+        return {"ndwi": self._ndwi_array(inputs)}

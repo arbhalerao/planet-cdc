@@ -34,6 +34,7 @@ class BaseModel(ABC):
         str, ScoreOutput
     ]  # score_name -> output metadata; keys match default_thresholds
     default_thresholds: dict[str, ThresholdBand]
+    derived_raster_names: list[str] = []  # names of rasters produced by derived_rasters()
 
     @abstractmethod
     def run(self, inputs: dict[str, Any]) -> dict[str, Any]:
@@ -43,3 +44,11 @@ class BaseModel(ABC):
         Return a flat dict; keys matching default_thresholds are scored, others are metadata.
         """
         ...
+
+    def derived_rasters(self, inputs: dict[str, Any]) -> dict[str, Any]:
+        """
+        Optional per-pixel rasters this model produces (e.g. an NDWI map, an LST map).
+        Each value is a float32 ndarray with the same shape and georeferencing as the
+        input bands. Returned mapping: {raster_name: ndarray}. Default: none.
+        """
+        return {}

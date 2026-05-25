@@ -1,8 +1,8 @@
-"""initial_schema
+"""initial schema
 
-Revision ID: 5c05b39b669e
+Revision ID: be862f709172
 Revises: 
-Create Date: 2026-05-23 18:27:12.192239
+Create Date: 2026-05-25 01:33:55.423870
 
 """
 from typing import Sequence, Union
@@ -14,7 +14,7 @@ from geoalchemy2 import Geometry
 from sqlalchemy.dialects import postgresql
 
 # revision identifiers, used by Alembic.
-revision: str = '5c05b39b669e'
+revision: str = 'be862f709172'
 down_revision: Union[str, None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -86,7 +86,7 @@ def upgrade() -> None:
     sa.Column('id', sa.UUID(), nullable=False),
     sa.Column('workflow_id', sa.UUID(), nullable=False),
     sa.Column('stac_item_id', sa.UUID(), nullable=False),
-    sa.Column('status', sa.Enum('discovered', 'queued', 'fetching', 'scoring', 'processed', 'fetch_failed', 'score_failed', 'failed', 'skipped', name='workflowitemstatus', native_enum=False, length=20), nullable=False),
+    sa.Column('status', sa.Enum('queued', 'fetching', 'uploading', 'scoring', 'processed', 'fetch_failed', 'upload_failed', 'score_failed', 'failed', name='workflowitemstatus', native_enum=False, length=20), nullable=False),
     sa.Column('overall_severity', sa.Enum('green', 'yellow', 'red', name='severity', native_enum=False, length=10), nullable=True),
     sa.Column('discovered_at', sa.DateTime(timezone=True), server_default=sa.text('now()'), nullable=False),
     sa.Column('processed_at', sa.DateTime(timezone=True), nullable=True),

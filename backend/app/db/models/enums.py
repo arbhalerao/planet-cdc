@@ -10,15 +10,15 @@ class WorkflowStatus(str, enum.Enum):
 
 
 class WorkflowItemStatus(str, enum.Enum):
-    discovered = "discovered"
     queued = "queued"
     fetching = "fetching"
+    uploading = "uploading"
     scoring = "scoring"
     processed = "processed"
     fetch_failed = "fetch_failed"
+    upload_failed = "upload_failed"
     score_failed = "score_failed"
     failed = "failed"
-    skipped = "skipped"
 
 
 class ModelRunStatus(str, enum.Enum):
