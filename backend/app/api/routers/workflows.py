@@ -242,6 +242,15 @@ async def create_workflow(
     db.add(aoi)
     await db.flush()
 
+    mc_input = body.models[0]
+    try:
+        model = get_model(mc_input.model_slug)
+    except KeyError:
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail=f"Unknown model '{mc_input.model_slug}'",
+        )
+
     collection_infos = {}
     for slug in body.collection_slugs:
         try:
@@ -252,17 +261,12 @@ async def create_workflow(
                 status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
                 detail=f"Unknown collection '{slug}'",
             )
-
-    model_objs = {}
-    for mc in body.models:
-        try:
-            m = get_model(mc.model_slug)
-        except KeyError:
+        level = check_compatibility(model, info).level
+        if level == "incompatible":
             raise HTTPException(
-                status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
-                detail=f"Unknown model '{mc.model_slug}'",
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Collection '{slug}' is not compatible with model '{mc_input.model_slug}'",
             )
-        model_objs[mc.model_slug] = m
 
     workflow = Workflow(
         aoi_id=aoi.id,
@@ -281,48 +285,43 @@ async def create_workflow(
     for slug in body.collection_slugs:
         db.add(WorkflowCollection(workflow_id=workflow.id, collection_slug=slug))
 
-    for mc_input in body.models:
-        model = model_objs[mc_input.model_slug]
-        wmc = WorkflowModelConfig(
-            workflow_id=workflow.id,
-            model_slug=mc_input.model_slug,
-            user_label=mc_input.user_label,
-            parameters=mc_input.parameters,
+    wmc = WorkflowModelConfig(
+        workflow_id=workflow.id,
+        model_slug=mc_input.model_slug,
+        user_label=mc_input.user_label,
+        parameters=mc_input.parameters,
+    )
+    db.add(wmc)
+    await db.flush()
+
+    for col_slug in body.collection_slugs:
+        col_info = collection_infos[col_slug]
+        level = check_compatibility(model, col_info).level
+        db.add(
+            WorkflowModelCollectionConfig(
+                workflow_id=workflow.id,
+                workflow_model_config_id=wmc.id,
+                collection_slug=col_slug,
+                compatibility_level=level,
+                is_enabled=True,
+            )
         )
-        db.add(wmc)
-        await db.flush()
 
-        for col_slug in body.collection_slugs:
-            try:
-                _, col_info = get_provider_collection(col_slug)
-                level = check_compatibility(model, col_info).level
-            except KeyError:
-                level = "incompatible"
-            db.add(
-                WorkflowModelCollectionConfig(
-                    workflow_id=workflow.id,
-                    workflow_model_config_id=wmc.id,
-                    collection_slug=col_slug,
-                    compatibility_level=level,
-                    is_enabled=level != "incompatible",
-                )
+    user_thresholds = mc_input.thresholds or {}
+    for score_name, defaults in model.default_thresholds.items():
+        ov = user_thresholds.get(score_name)
+        db.add(
+            ThresholdConfig(
+                workflow_model_config_id=wmc.id,
+                score_name=score_name,
+                green_min=ov.green_min if ov else defaults.green[0],
+                green_max=ov.green_max if ov else defaults.green[1],
+                yellow_min=ov.yellow_min if ov else defaults.yellow[0],
+                yellow_max=ov.yellow_max if ov else defaults.yellow[1],
+                red_min=ov.red_min if ov else defaults.red[0],
+                red_max=ov.red_max if ov else defaults.red[1],
             )
-
-        user_thresholds = mc_input.thresholds or {}
-        for score_name, defaults in model.default_thresholds.items():
-            ov = user_thresholds.get(score_name)
-            db.add(
-                ThresholdConfig(
-                    workflow_model_config_id=wmc.id,
-                    score_name=score_name,
-                    green_min=ov.green_min if ov else defaults.green[0],
-                    green_max=ov.green_max if ov else defaults.green[1],
-                    yellow_min=ov.yellow_min if ov else defaults.yellow[0],
-                    yellow_max=ov.yellow_max if ov else defaults.yellow[1],
-                    red_min=ov.red_min if ov else defaults.red[0],
-                    red_max=ov.red_max if ov else defaults.red[1],
-                )
-            )
+        )
 
     await db.commit()
     await db.refresh(workflow)

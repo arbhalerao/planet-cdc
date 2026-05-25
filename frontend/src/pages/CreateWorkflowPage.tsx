@@ -6,7 +6,7 @@ import {
   useModels,
 } from "../api/queries";
 import Map from "../components/Map";
-import type { CollectionInfo, ModelInfo, ThresholdBand } from "../api/types";
+import type { ModelInfo, ThresholdBand } from "../api/types";
 
 // types
 
@@ -16,7 +16,6 @@ interface ThresholdOverride {
   red_min: number; red_max: number;
 }
 type ModelThresholds = Record<string, ThresholdOverride>;
-type AllThresholds = Record<string, ModelThresholds>;
 
 // helpers
 
@@ -33,21 +32,6 @@ function defaultOverrides(thresholds: Record<string, ThresholdBand>): ModelThres
   );
 }
 
-/** Given selected models, compute per-collection status. */
-function collectionStatus(col: CollectionInfo, selectedModels: ModelInfo[]) {
-  if (selectedModels.length === 0) {
-    return { enabled: false, allIncompatible: true, badges: [] as Badge[] };
-  }
-  const badges: Badge[] = selectedModels.map((m) => {
-    const c = m.compatible_collections[col.slug] ?? { level: "incompatible", reasons: ["Not declared compatible"] };
-    return { modelSlug: m.slug, level: c.level, reasons: c.reasons };
-  });
-  const allIncompatible = badges.every((b) => b.level === "incompatible");
-  return { enabled: !allIncompatible, allIncompatible, badges };
-}
-
-interface Badge { modelSlug: string; level: string; reasons: string[] }
-
 // sub-components
 
 const COMPAT_STYLES: Record<string, string> = {
@@ -56,12 +40,12 @@ const COMPAT_STYLES: Record<string, string> = {
   incompatible: "bg-red-900/50 text-red-400 border-red-900",
 };
 
-function CompatBadge({ level, reasons, label }: { level: string; reasons: string[]; label?: string }) {
+function CompatBadge({ level, reasons }: { level: string; reasons: string[] }) {
   const cls = COMPAT_STYLES[level] ?? "bg-gray-800 text-gray-400 border-gray-700";
   return (
     <span className={`relative group inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded border ${cls}`}>
-      {label ?? level}
-      {reasons.length > 0 && (
+      {level}
+      {reasons.length > 0 && level !== "incompatible" && (
         <>
           <span className="cursor-default underline decoration-dotted">!</span>
           <span className="pointer-events-none absolute left-0 top-full mt-1 z-20 w-60 rounded bg-gray-950 border border-gray-700 px-2 py-1.5 text-xs text-gray-300 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-normal">
@@ -141,58 +125,38 @@ export default function CreateWorkflowPage() {
 
   const isPoint = drawnWithTool === "point";
 
-  // model-first selections
-  const [selectedModelSlugs, setSelectedModelSlugs] = useState<string[]>([]);
+  // model (single)
+  const [selectedModelSlug, setSelectedModelSlug] = useState<string | null>(null);
   const [selectedCollections, setSelectedCollections] = useState<string[]>([]);
-  const [thresholdOverrides, setThresholdOverrides] = useState<AllThresholds>({});
-  const [expandedThreshold, setExpandedThreshold] = useState<string | null>(null);
+  const [thresholdOverrides, setThresholdOverrides] = useState<ModelThresholds>({});
+  const [thresholdsOpen, setThresholdsOpen] = useState(false);
 
-  const selectedModels = (models ?? []).filter((m) => selectedModelSlugs.includes(m.slug));
+  const selectedModel = (models ?? []).find((m) => m.slug === selectedModelSlug) ?? null;
 
-  // model select/deselect
+  function selectModel(slug: string) {
+    const m = (models ?? []).find((x) => x.slug === slug);
+    if (!m) return;
+    setSelectedModelSlug(slug);
+    setThresholdOverrides(defaultOverrides(m.default_thresholds));
+    setThresholdsOpen(false);
 
-  function selectModel(m: ModelInfo) {
-    setSelectedModelSlugs((prev) => [...prev, m.slug]);
-    setThresholdOverrides((prev) => ({ ...prev, [m.slug]: defaultOverrides(m.default_thresholds) }));
-
-    // auto-enable collections compatible with the new model (not already selected)
-    const toAdd = (collections ?? [])
+    const compatible = (collections ?? [])
       .filter((col) => {
         const c = m.compatible_collections[col.slug];
         return c && c.level !== "incompatible";
       })
       .map((col) => col.slug);
-    setSelectedCollections((prev) => [...new Set([...prev, ...toAdd])]);
+    setSelectedCollections(compatible);
   }
 
-  function deselectModel(slug: string) {
-    const remaining = selectedModelSlugs.filter((s) => s !== slug);
-    setSelectedModelSlugs(remaining);
-    if (expandedThreshold === slug) setExpandedThreshold(null);
-    setThresholdOverrides((prev) => { const n = { ...prev }; delete n[slug]; return n; });
-
-    // drop collections now incompatible with ALL remaining models
-    if (remaining.length === 0) {
-      setSelectedCollections([]);
-    } else {
-      const remainingModels = (models ?? []).filter((m) => remaining.includes(m.slug));
-      setSelectedCollections((prev) =>
-        prev.filter((colSlug) =>
-          remainingModels.some((m) => {
-            const c = m.compatible_collections[colSlug];
-            return c && c.level !== "incompatible";
-          })
-        )
-      );
-    }
+  function clearModel() {
+    setSelectedModelSlug(null);
+    setSelectedCollections([]);
+    setThresholdOverrides({});
+    setThresholdsOpen(false);
   }
 
-  function toggleModel(m: ModelInfo) {
-    selectedModelSlugs.includes(m.slug) ? deselectModel(m.slug) : selectModel(m);
-  }
-
-  function toggleCollection(slug: string, enabled: boolean) {
-    if (!enabled) return;
+  function toggleCollection(slug: string) {
     setSelectedCollections((prev) =>
       prev.includes(slug) ? prev.filter((s) => s !== slug) : [...prev, slug]
     );
@@ -211,17 +175,17 @@ export default function CreateWorkflowPage() {
       time_end: new Date(timeEnd).toISOString(),
       poll_interval_minutes: mode === "fixed_future" ? pollInterval : null,
       collection_slugs: selectedCollections,
-      models: selectedModelSlugs.map((slug) => ({
-        model_slug: slug,
-        thresholds: thresholdOverrides[slug] ?? undefined,
-      })),
+      models: [{
+        model_slug: selectedModelSlug!,
+        thresholds: thresholdOverrides,
+      }],
     });
     navigate(`/workflows/${wf.id}`);
   }
 
   const canSubmit =
     !!name && !!drawnGeometry && !!timeStart && !!timeEnd &&
-    selectedModelSlugs.length > 0 && selectedCollections.length > 0;
+    !!selectedModelSlug && selectedCollections.length > 0;
 
   return (
     <div className="p-6 max-w-4xl mx-auto">
@@ -334,18 +298,19 @@ export default function CreateWorkflowPage() {
           </div>
         </section>
 
-        {/* 3. Models */}
+        {/* 3. Model */}
         <section className="bg-gray-900 border border-gray-800 rounded-lg p-5 space-y-3">
-          <h2 className="font-medium text-gray-200">Models</h2>
-          <p className="text-xs text-gray-500">Select one or more models. Compatible data sources will be shown below.</p>
+          <h2 className="font-medium text-gray-200">Model</h2>
+          <p className="text-xs text-gray-500">Select one model. Compatible data sources will be shown below.</p>
           <div className="space-y-2">
             {models?.map((m) => {
-              const selected = selectedModelSlugs.includes(m.slug);
-              const thresholdOpen = expandedThreshold === m.slug;
+              const selected = selectedModelSlug === m.slug;
               return (
                 <div key={m.slug} className={`rounded border transition-colors ${selected ? "border-brand-600 bg-brand-950/20" : "border-gray-700"}`}>
                   <label className="flex items-start gap-3 p-3 cursor-pointer">
-                    <input type="checkbox" checked={selected} onChange={() => toggleModel(m)} className="mt-0.5 accent-brand-500" />
+                    <input type="radio" name="model" checked={selected}
+                      onChange={() => selected ? clearModel() : selectModel(m.slug)}
+                      className="mt-0.5 accent-brand-500" />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium">{m.name}</div>
                       <div className="text-xs text-gray-400 mt-0.5">{m.description}</div>
@@ -356,16 +321,19 @@ export default function CreateWorkflowPage() {
                     </div>
                     {selected && (
                       <button type="button"
-                        onClick={(e) => { e.preventDefault(); setExpandedThreshold(thresholdOpen ? null : m.slug); }}
+                        onClick={(e) => { e.preventDefault(); setThresholdsOpen((o) => !o); }}
                         className="text-xs text-gray-400 hover:text-gray-200 whitespace-nowrap mt-0.5">
-                        {thresholdOpen ? "Hide thresholds ▲" : "Edit thresholds ▼"}
+                        {thresholdsOpen ? "Hide thresholds ▲" : "Edit thresholds ▼"}
                       </button>
                     )}
                   </label>
-                  {selected && thresholdOpen && thresholdOverrides[m.slug] && (
+                  {selected && thresholdsOpen && (
                     <div className="px-4 pb-4">
-                      <ThresholdEditor model={m} overrides={thresholdOverrides[m.slug]}
-                        onChange={(next) => setThresholdOverrides((all) => ({ ...all, [m.slug]: next }))} />
+                      <ThresholdEditor
+                        model={m}
+                        overrides={thresholdOverrides}
+                        onChange={setThresholdOverrides}
+                      />
                     </div>
                   )}
                 </div>
@@ -374,54 +342,49 @@ export default function CreateWorkflowPage() {
           </div>
         </section>
 
-        {/* 4. Collections (model-driven) */}
+        {/* 4. Data sources */}
         <section className="bg-gray-900 border border-gray-800 rounded-lg p-5 space-y-3">
           <h2 className="font-medium text-gray-200">Data sources</h2>
 
-          {selectedModels.length === 0 ? (
+          {!selectedModel ? (
             <p className="text-sm text-gray-500">Select a model above to see compatible data sources.</p>
           ) : (
             <>
               <p className="text-xs text-gray-500">
-                Sources are auto-enabled based on your model selection. Incompatible sources are disabled.
+                Compatible sources are auto-selected. Incompatible sources cannot be used with this model.
               </p>
               <div className="space-y-2">
                 {(collections ?? []).map((col) => {
-                  const { enabled, allIncompatible, badges } = collectionStatus(col, selectedModels);
+                  const compat = selectedModel.compatible_collections[col.slug]
+                    ?? { level: "incompatible", reasons: ["Not declared compatible"] };
+                  const isIncompat = compat.level === "incompatible";
                   const checked = selectedCollections.includes(col.slug);
 
                   return (
                     <label
                       key={col.slug}
-                      className={`flex items-start gap-3 p-3 rounded border transition-colors ${allIncompatible
-                        ? "border-gray-800 opacity-40 cursor-not-allowed"
-                        : "border-gray-700 cursor-pointer hover:border-gray-600"
-                        }`}
+                      className={`flex items-start gap-3 p-3 rounded border transition-colors ${
+                        isIncompat
+                          ? "border-gray-800 opacity-40 cursor-not-allowed"
+                          : "border-gray-700 cursor-pointer hover:border-gray-600"
+                      }`}
+                      title={isIncompat ? "This collection is not supported by this model" : undefined}
                     >
                       <input
                         type="checkbox"
-                        checked={checked && enabled}
-                        disabled={!enabled}
-                        onChange={() => toggleCollection(col.slug, enabled)}
+                        checked={checked && !isIncompat}
+                        disabled={isIncompat}
+                        onChange={() => toggleCollection(col.slug)}
                         className="mt-0.5 accent-brand-500"
                       />
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2 flex-wrap">
                           <span className="text-sm font-medium">{col.display_name}</span>
                           <span className="text-xs text-gray-500">{col.processing_level} · {col.resolution_m}m</span>
+                          <CompatBadge level={compat.level} reasons={compat.reasons} />
                         </div>
-                        <div className="flex flex-wrap gap-1.5 mt-1.5">
-                          {badges.map((b) => (
-                            <span key={b.modelSlug} className="flex items-center gap-1">
-                              <span className="text-xs text-gray-600">{b.modelSlug.replace("-detector", "").replace("-", " ")}</span>
-                              <CompatBadge level={b.level} reasons={b.reasons} />
-                            </span>
-                          ))}
-                        </div>
-                        {allIncompatible && (
-                          <p className="text-xs text-red-400/70 mt-1">
-                            Not compatible with any selected model.
-                          </p>
+                        {isIncompat && compat.reasons.length > 0 && (
+                          <p className="text-xs text-gray-500 mt-1">{compat.reasons.join(". ")}</p>
                         )}
                       </div>
                     </label>
@@ -449,10 +412,10 @@ export default function CreateWorkflowPage() {
             <span className="text-xs text-gray-500 self-center">
               {!drawnGeometry
                 ? "Draw an area of interest on the map"
-                : selectedModelSlugs.length === 0
-                  ? "Select at least one model"
+                : !selectedModelSlug
+                  ? "Select a model"
                   : selectedCollections.length === 0
-                    ? "No compatible data sources selected"
+                    ? "Select at least one data source"
                     : ""}
             </span>
           )}

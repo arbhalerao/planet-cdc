@@ -31,7 +31,7 @@ class WorkflowCreate(BaseModel):
     aoi_filter_mode: str = Field(default="intersects", pattern="^(intersects|enclosed)$")
     poll_interval_minutes: int | None = None
     collection_slugs: list[str] = Field(min_length=1)
-    models: list[ModelConfigInput] = Field(min_length=1)
+    models: list[ModelConfigInput] = Field(min_length=1, max_length=1)
 
     @model_validator(mode="after")
     def check_poll_interval(self) -> "WorkflowCreate":
