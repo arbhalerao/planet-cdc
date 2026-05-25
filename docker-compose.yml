@@ -47,6 +47,24 @@ services:
       - minio_data:/data
     restart: unless-stopped
 
+  titiler:
+    image: ghcr.io/developmentseed/titiler:latest
+    ports:
+      - "8080:80"
+    environment:
+      AWS_ACCESS_KEY_ID: ${MINIO_ROOT_USER:-minioadmin}
+      AWS_SECRET_ACCESS_KEY: ${MINIO_ROOT_PASSWORD:-minioadmin}
+      AWS_S3_ENDPOINT: minio:9000
+      AWS_HTTPS: "NO"
+      AWS_VIRTUAL_HOSTING: "FALSE"
+      GDAL_DISABLE_READDIR_ON_OPEN: "EMPTY_DIR"
+      CPL_VSIL_CURL_USE_HEAD: "FALSE"
+      CPL_VSIL_CURL_ALLOWED_EXTENSIONS: ".tif,.TIF,.tiff"
+      MOSAIC_CONCURRENCY: "1"
+    depends_on:
+      minio: { condition: service_started }
+    restart: unless-stopped
+
   # Application services
   api:
     build:
@@ -91,6 +109,7 @@ services:
     ports: ["3000:3000"]
     depends_on:
       api: { condition: service_started }
+      titiler: { condition: service_started }
     restart: unless-stopped
 
 volumes:

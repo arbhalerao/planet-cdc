@@ -43,6 +43,7 @@ class ModelResponse(BaseModel):
     description: str
     primary_score: str
     required_bands: list[str]
+    derived_rasters: list[str]
     max_cloud_cover: float | None
     input_mode: str
     score_outputs: dict[str, ScoreOutputResponse]

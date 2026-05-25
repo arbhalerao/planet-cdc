@@ -55,6 +55,7 @@ def _model_response(model: WorkerModel) -> ModelResponse:
         description=model.description,
         primary_score=model.primary_score,
         required_bands=model.requirements.required_assets,
+        derived_rasters=list(model.derived_raster_names),
         max_cloud_cover=model.requirements.max_cloud_cover,
         input_mode=model.requirements.input_mode,
         score_outputs={

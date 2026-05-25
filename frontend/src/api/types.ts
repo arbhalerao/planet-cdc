@@ -35,6 +35,7 @@ export interface ModelInfo {
   description: string;
   primary_score: string;
   required_bands: string[];
+  derived_rasters: string[];
   max_cloud_cover: number | null;
   input_mode: string;
   score_outputs: Record<string, ScoreOutput>;

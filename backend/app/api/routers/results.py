@@ -1,8 +1,10 @@
+import asyncio
 import math
+import re
 import uuid
 from datetime import datetime, timezone
 
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query, Response, status
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -336,3 +338,45 @@ async def remove_bookmark(
 
     await db.delete(bm)
     await db.commit()
+
+
+_ASSET_NAME_RE = re.compile(r"^[a-z0-9][a-z0-9_-]*$")
+
+
+@router.get("/workflows/{workflow_id}/items/{item_id}/assets/{name}")
+async def download_asset(
+    workflow_id: uuid.UUID,
+    item_id: uuid.UUID,
+    name: str,
+    db: AsyncSession = Depends(get_db),
+):
+    """Stream a stored COG (raw band or derived raster) out of MinIO."""
+    if not _ASSET_NAME_RE.match(name):
+        raise HTTPException(
+            status_code=status.HTTP_422_UNPROCESSABLE_ENTITY,
+            detail="invalid asset name",
+        )
+
+    wi = (
+        await db.execute(
+            select(WorkflowItem).where(
+                WorkflowItem.id == item_id,
+                WorkflowItem.workflow_id == workflow_id,
+            )
+        )
+    ).scalar_one_or_none()
+    if wi is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Item not found")
+
+    from worker import storage
+
+    key = storage.band_key(workflow_id, item_id, name)
+    data = await asyncio.to_thread(storage.get_band_bytes, key)
+    if data is None:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Asset not found")
+
+    return Response(
+        content=data,
+        media_type="image/tiff",
+        headers={"Content-Disposition": f'attachment; filename="{name}.tif"'},
+    )

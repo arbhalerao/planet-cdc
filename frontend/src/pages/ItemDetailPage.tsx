@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
 import {
   useAddBookmark,
+  useModels,
   useRemoveBookmark,
   useUpsertReview,
   useWorkflow,
@@ -13,6 +14,33 @@ import StatusBadge from "../components/StatusBadge";
 import MapViewer from "../components/MapViewer";
 
 const REVIEW_STATUSES = ["new", "reviewed", "item_of_interest", "dismissed", "false_positive", "needs_follow_up"];
+
+// Per-band visualization parameters for TiTiler. Falls back to the default for unknown bands.
+const BAND_STYLE: Record<string, { colormap: string; rescale: string; label: string }> = {
+  ndwi:     { colormap: "rdylbu",  rescale: "-0.5,0.5",     label: "NDWI" },
+  lst:      { colormap: "inferno", rescale: "-10,60",       label: "LST (°C)" },
+  green:    { colormap: "gray",    rescale: "7000,25000",   label: "Green" },
+  nir:      { colormap: "gray",    rescale: "7000,30000",   label: "NIR" },
+  red:      { colormap: "gray",    rescale: "7000,25000",   label: "Red" },
+  blue:     { colormap: "gray",    rescale: "7000,20000",   label: "Blue" },
+  thermal1: { colormap: "inferno", rescale: "30000,50000",  label: "Thermal" },
+};
+const BAND_STYLE_DEFAULT = { colormap: "viridis", rescale: "0,30000", label: "" };
+
+function bandStyle(name: string) {
+  return BAND_STYLE[name] ?? { ...BAND_STYLE_DEFAULT, label: name };
+}
+
+function buildRasterUrl(workflowId: string, itemId: string, band: string): string {
+  const { colormap, rescale } = bandStyle(band);
+  const cogUrl = `s3://artifacts/${workflowId}/${itemId}/${band}.tif`;
+  const params = new URLSearchParams({
+    url: cogUrl,
+    colormap_name: colormap,
+    rescale,
+  });
+  return `/titiler/cog/tiles/WebMercatorQuad/{z}/{x}/{y}.png?${params.toString()}`;
+}
 
 function StacViewer({ stacItemId, stacItem }: { stacItemId: string; stacItem: object }) {
   const [query, setQuery] = useState("");
@@ -82,6 +110,7 @@ export default function ItemDetailPage() {
   const { wfId, itemId } = useParams<{ wfId: string; itemId: string }>();
   const { data: item, isLoading } = useWorkflowItem(wfId!, itemId!);
   const { data: wf } = useWorkflow(wfId!);
+  const { data: models } = useModels();
   const addBookmark = useAddBookmark(wfId!, itemId!);
   const removeBookmark = useRemoveBookmark(wfId!, itemId!);
   const upsertReview = useUpsertReview(wfId!, itemId!);
@@ -89,6 +118,26 @@ export default function ItemDetailPage() {
   const [reviewStatus, setReviewStatus] = useState("");
   const [notes, setNotes] = useState("");
   const [reviewSubmitted, setReviewSubmitted] = useState(false);
+  const [activeBand, setActiveBand] = useState<string | null>(null);
+
+  // Bands available for this item = union of required_bands + derived_rasters
+  // across the model runs that actually succeeded.
+  const availableBands = useMemo(() => {
+    if (!item || !models) return [] as string[];
+    const successfulSlugs = new Set(
+      item.model_runs.filter((r) => r.status === "success").map((r) => r.model_slug),
+    );
+    const out = new Set<string>();
+    for (const m of models) {
+      if (!successfulSlugs.has(m.slug)) continue;
+      (m.required_bands ?? []).forEach((b) => out.add(b));
+      (m.derived_rasters ?? []).forEach((d) => out.add(d));
+    }
+    return Array.from(out);
+  }, [item, models]);
+
+  const rasterUrl =
+    activeBand && wfId && itemId ? buildRasterUrl(wfId, itemId, activeBand) : null;
 
   if (isLoading) return <div className="p-6 text-gray-400">Loading…</div>;
   if (!item) return <div className="p-6 text-red-400">Item not found.</div>;
@@ -145,19 +194,74 @@ export default function ItemDetailPage() {
       {/* Map */}
       {(wf?.aoi_geometry || item.stac_item.bbox) && (
         <section className="mb-6">
+          {availableBands.length > 0 && (
+            <div className="mb-2 flex items-center gap-2 flex-wrap text-xs">
+              <span className="text-gray-500 mr-1">Overlay:</span>
+              <button
+                type="button"
+                onClick={() => setActiveBand(null)}
+                className={`px-2 py-1 rounded border transition-colors ${
+                  activeBand === null
+                    ? "border-brand-500 text-brand-300 bg-brand-900/30"
+                    : "border-gray-700 text-gray-400 hover:border-gray-500"
+                }`}
+              >
+                None
+              </button>
+              {availableBands.map((b) => {
+                const isActive = activeBand === b;
+                return (
+                  <div
+                    key={b}
+                    className={`flex items-stretch rounded border transition-colors overflow-hidden ${
+                      isActive
+                        ? "border-brand-500 bg-brand-900/30"
+                        : "border-gray-700 hover:border-gray-500"
+                    }`}
+                  >
+                    <button
+                      type="button"
+                      onClick={() => setActiveBand(isActive ? null : b)}
+                      className={`px-2 py-1 transition-colors ${
+                        isActive ? "text-brand-300" : "text-gray-400"
+                      }`}
+                      title={`colormap: ${bandStyle(b).colormap}`}
+                    >
+                      {bandStyle(b).label || b}
+                    </button>
+                    {isActive && (
+                      <a
+                        href={`/api/workflows/${wfId}/items/${itemId}/assets/${b}`}
+                        download={`${b}.tif`}
+                        className="flex items-center px-1.5 border-l border-brand-500/50 text-brand-300 hover:bg-brand-900/60 transition-colors"
+                        title={`Download ${b}.tif`}
+                        aria-label={`Download ${b}.tif`}
+                      >
+                        <svg
+                          width="14"
+                          height="14"
+                          viewBox="0 0 16 16"
+                          fill="none"
+                          stroke="currentColor"
+                          strokeWidth="1.5"
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                        >
+                          <path d="M8 2v8m0 0l-3-3m3 3l3-3M3 13h10" />
+                        </svg>
+                      </a>
+                    )}
+                  </div>
+                );
+              })}
+            </div>
+          )}
           <MapViewer
             aoi={wf?.aoi_geometry}
-            items={
-              item.stac_item.bbox
-                ? [{
-                  id: item.id,
-                  bbox: item.stac_item.bbox as [number, number, number, number],
-                  severity: item.overall_severity,
-                  status: item.status,
-                }]
-                : []
-            }
-            className="h-56 w-full rounded-lg overflow-hidden border border-gray-800"
+            items={[]}
+            rasterUrl={rasterUrl}
+            fitToAoiOnly
+            className="h-72 w-full rounded-lg overflow-hidden border border-gray-800"
           />
         </section>
       )}

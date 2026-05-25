@@ -13,7 +13,13 @@ interface Props {
   items?: MapViewerItem[];
   onItemClick?: (id: string) => void;
   className?: string;
+  rasterUrl?: string | null;     // XYZ template, e.g. /titiler/cog/tiles/{z}/{x}/{y}.png?url=...
+  rasterOpacity?: number;        // 0..1, default 0.75
+  fitToAoiOnly?: boolean;        // ignore item bboxes when fitting bounds (item detail page)
 }
+
+const RASTER_SOURCE_ID = "cog-overlay";
+const RASTER_LAYER_ID = "cog-overlay-layer";
 
 const SEVERITY_COLORS: Record<string, string> = {
   green: "#22c55e",
@@ -29,9 +35,27 @@ function bboxToPolygon(bbox: [number, number, number, number]): GeoJSON.Polygon 
   };
 }
 
-export default function MapViewer({ aoi, items = [], onItemClick, className = "" }: Props) {
+export default function MapViewer({
+  aoi,
+  items = [],
+  onItemClick,
+  className = "",
+  rasterUrl = null,
+  rasterOpacity = 0.75,
+  fitToAoiOnly = false,
+}: Props) {
   const containerRef = useRef<HTMLDivElement>(null);
   const mapRef = useRef<maplibregl.Map | null>(null);
+  const loadedRef = useRef(false);
+  const pendingOpsRef = useRef<Array<() => void>>([]);
+
+  function runOrDefer(fn: () => void) {
+    if (loadedRef.current) {
+      fn();
+    } else {
+      pendingOpsRef.current.push(fn);
+    }
+  }
 
   useEffect(() => {
     if (!containerRef.current || mapRef.current) return;
@@ -139,41 +163,89 @@ export default function MapViewer({ aoi, items = [], onItemClick, className = ""
       }
 
       // Fit bounds to AOI or items
-      fitBounds(map, aoi, items);
+      fitBounds(map, aoi, items, fitToAoiOnly);
+
+      // Mark loaded and drain anything that was queued before load fired.
+      loadedRef.current = true;
+      const queued = pendingOpsRef.current;
+      pendingOpsRef.current = [];
+      queued.forEach((op) => op());
     });
 
     mapRef.current = map;
-    return () => { map.remove(); mapRef.current = null; };
-  }, []); // eslint-disable-line react-hooks/exhaustive-deps
+    return () => {
+      loadedRef.current = false;
+      pendingOpsRef.current = [];
+      map.remove();
+      mapRef.current = null;
+    };
+  }, []);
 
-  // Update sources when data changes
+  // Update sources when data changes. Defers to the map "load" event if the
+  // style hasn't finished loading yet (cold page render).
   useEffect(() => {
     const map = mapRef.current;
-    if (!map || !map.isStyleLoaded()) return;
+    if (!map) return;
 
-    const aoiSrc = map.getSource("aoi") as maplibregl.GeoJSONSource | undefined;
-    if (aoiSrc) {
-      aoiSrc.setData(
-        aoi
-          ? { type: "Feature", geometry: aoi, properties: {} }
-          : { type: "FeatureCollection", features: [] }
-      );
-    }
+    const apply = () => {
+      const aoiSrc = map.getSource("aoi") as maplibregl.GeoJSONSource | undefined;
+      if (aoiSrc) {
+        aoiSrc.setData(
+          aoi
+            ? { type: "Feature", geometry: aoi, properties: {} }
+            : { type: "FeatureCollection", features: [] }
+        );
+      }
 
-    const itemsSrc = map.getSource("items") as maplibregl.GeoJSONSource | undefined;
-    if (itemsSrc) {
-      itemsSrc.setData({
-        type: "FeatureCollection",
-        features: items.map((item) => ({
-          type: "Feature",
-          geometry: bboxToPolygon(item.bbox),
-          properties: { id: item.id, severity: item.severity, status: item.status },
-        })),
+      const itemsSrc = map.getSource("items") as maplibregl.GeoJSONSource | undefined;
+      if (itemsSrc) {
+        itemsSrc.setData({
+          type: "FeatureCollection",
+          features: items.map((item) => ({
+            type: "Feature",
+            geometry: bboxToPolygon(item.bbox),
+            properties: { id: item.id, severity: item.severity, status: item.status },
+          })),
+        });
+      }
+
+      fitBounds(map, aoi, items, fitToAoiOnly);
+    };
+
+    runOrDefer(apply);
+  }, [aoi, items, fitToAoiOnly]);
+
+  // Manage the optional raster overlay (TiTiler tiles)
+  useEffect(() => {
+    const map = mapRef.current;
+    if (!map) return;
+
+    const apply = () => {
+      if (map.getLayer(RASTER_LAYER_ID)) map.removeLayer(RASTER_LAYER_ID);
+      if (map.getSource(RASTER_SOURCE_ID)) map.removeSource(RASTER_SOURCE_ID);
+
+      if (!rasterUrl) return;
+
+      map.addSource(RASTER_SOURCE_ID, {
+        type: "raster",
+        tiles: [rasterUrl],
+        tileSize: 256,
       });
-    }
+      // Insert below the AOI outline so the AOI border stays visible on top.
+      const beforeId = map.getLayer("aoi-line") ? "aoi-line" : undefined;
+      map.addLayer(
+        {
+          id: RASTER_LAYER_ID,
+          type: "raster",
+          source: RASTER_SOURCE_ID,
+          paint: { "raster-opacity": rasterOpacity },
+        },
+        beforeId,
+      );
+    };
 
-    fitBounds(map, aoi, items);
-  }, [aoi, items]);
+    runOrDefer(apply);
+  }, [rasterUrl, rasterOpacity]);
 
   return <div ref={containerRef} className={className} />;
 }
@@ -182,15 +254,18 @@ function fitBounds(
   map: maplibregl.Map,
   aoi: GeoJSON.Geometry | null | undefined,
   items: MapViewerItem[],
+  aoiOnly: boolean = false,
 ) {
   const coords: [number, number][] = [];
 
   if (aoi) {
     collectCoords(aoi, coords);
   }
-  for (const item of items) {
-    const [w, s, e, n] = item.bbox;
-    coords.push([w, s], [e, n]);
+  if (!aoiOnly) {
+    for (const item of items) {
+      const [w, s, e, n] = item.bbox;
+      coords.push([w, s], [e, n]);
+    }
   }
 
   if (coords.length === 0) return;
