@@ -164,6 +164,20 @@ async def _load_response(workflow: Workflow, db: AsyncSession) -> WorkflowRespon
         )
     ).scalar_one()
 
+    async def _count_status(status_value: str) -> int:
+        return (
+            await db.execute(
+                select(func.count()).where(
+                    WorkflowItem.workflow_id == workflow.id,
+                    WorkflowItem.status == status_value,
+                )
+            )
+        ).scalar_one()
+
+    failed_fetch_items = await _count_status("fetch_failed")
+    failed_upload_items = await _count_status("upload_failed")
+    failed_score_items = await _count_status("score_failed")
+
     next_run_at = None
     if workflow.poll_interval_minutes and workflow.last_checked_at:
         next_run_at = workflow.last_checked_at + timedelta(minutes=workflow.poll_interval_minutes)
@@ -192,6 +206,9 @@ async def _load_response(workflow: Workflow, db: AsyncSession) -> WorkflowRespon
         total_items=total_items,
         processed_items=processed_items,
         identified_items=identified_items,
+        failed_fetch_items=failed_fetch_items,
+        failed_upload_items=failed_upload_items,
+        failed_score_items=failed_score_items,
     )
 
 

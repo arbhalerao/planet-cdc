@@ -77,6 +77,9 @@ export interface Workflow extends WorkflowSummary {
   total_items: number;
   processed_items: number;
   identified_items: number;
+  failed_fetch_items: number;
+  failed_upload_items: number;
+  failed_score_items: number;
 }
 
 export interface StacItem {

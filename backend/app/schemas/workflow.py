@@ -96,6 +96,9 @@ class WorkflowResponse(BaseModel):
     total_items: int = 0
     processed_items: int = 0
     identified_items: int = 0
+    failed_fetch_items: int = 0
+    failed_upload_items: int = 0
+    failed_score_items: int = 0
 
 
 class WorkflowSummary(BaseModel):

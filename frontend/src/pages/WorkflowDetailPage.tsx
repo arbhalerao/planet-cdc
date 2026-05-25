@@ -136,7 +136,7 @@ export default function WorkflowDetailPage() {
 
       {/* Item counts */}
       {wf.total_items > 0 && (
-        <div className="flex gap-3 mb-4 text-xs">
+        <div className="flex gap-3 mb-4 text-xs flex-wrap">
           <span className="text-gray-400">
             <span className="text-white font-medium">{wf.processed_items}</span>
             <span className="text-gray-500">/{wf.total_items}</span>
@@ -149,6 +149,26 @@ export default function WorkflowDetailPage() {
             </span>
             {" "}identified
           </span>
+          {(wf.failed_fetch_items + wf.failed_upload_items + wf.failed_score_items) > 0 && (
+            <>
+              <span className="text-gray-600">·</span>
+              {wf.failed_fetch_items > 0 && (
+                <span className="text-red-400" title="Band download/clip failed before bands could be stored">
+                  <span className="font-medium">{wf.failed_fetch_items}</span> fetch failed
+                </span>
+              )}
+              {wf.failed_upload_items > 0 && (
+                <span className="text-red-400" title="MinIO upload failed after the bands were clipped">
+                  <span className="font-medium">{wf.failed_upload_items}</span> upload failed
+                </span>
+              )}
+              {wf.failed_score_items > 0 && (
+                <span className="text-red-400" title="Bands were stored but a model run errored during scoring">
+                  <span className="font-medium">{wf.failed_score_items}</span> score failed
+                </span>
+              )}
+            </>
+          )}
         </div>
       )}
 
