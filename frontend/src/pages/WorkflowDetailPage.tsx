@@ -62,7 +62,7 @@ export default function WorkflowDetailPage() {
     return () => obs.disconnect();
   }, [hasNextPage, isFetchingNextPage, fetchNextPage]);
 
-  if (wfLoading) return <div className="p-6 text-gray-400">Loading…</div>;
+  if (wfLoading) return <div className="p-6 text-gray-600 dark:text-gray-400">Loading…</div>;
   if (!wf) return <div className="p-6 text-red-400">Workflow not found.</div>;
 
   const items = data?.pages.flatMap((p) => p.items) ?? [];
@@ -86,14 +86,14 @@ export default function WorkflowDetailPage() {
       {/* Header */}
       <div className="flex items-start justify-between mb-6">
         <div>
-          <Link to="/workflows" className="text-xs text-gray-400 hover:text-gray-200 mb-1 block">
+          <Link to="/workflows" className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 mb-1 block">
             ← Workflows
           </Link>
           <h1 className="text-xl font-semibold flex items-center gap-3">
             {wf.name}
             <StatusBadge status={wf.status} />
           </h1>
-          <div className="text-sm text-gray-400 mt-1">
+          <div className="text-sm text-gray-600 dark:text-gray-400 mt-1">
             {wf.time_mode} · {new Date(wf.time_start).toLocaleDateString()}
             {wf.time_end ? ` → ${new Date(wf.time_end).toLocaleDateString()}` : ""}
           </div>
@@ -123,16 +123,16 @@ export default function WorkflowDetailPage() {
       </div>
 
       {/* Metadata chips */}
-      <div className="flex gap-2 flex-wrap mb-3 text-xs text-gray-400">
+      <div className="flex gap-2 flex-wrap mb-3 text-xs text-gray-600 dark:text-gray-400">
         {wf.collection_slugs.map((c) => (
-          <span key={c} className="bg-gray-800 border border-gray-700 rounded px-2 py-0.5">{c}</span>
+          <span key={c} className="bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded px-2 py-0.5">{c}</span>
         ))}
         {wf.model_configs.map((m) => (
-          <span key={m.id} className="bg-gray-800 border border-gray-700 rounded px-2 py-0.5">
+          <span key={m.id} className="bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded px-2 py-0.5">
             🤖 {m.model_slug}
           </span>
         ))}
-        <span className="bg-gray-800 border border-gray-700 rounded px-2 py-0.5">
+        <span className="bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded px-2 py-0.5">
           {wf.aoi_filter_mode === "enclosed" ? "≥80% enclosed" : "intersects"}
         </span>
       </div>
@@ -140,21 +140,21 @@ export default function WorkflowDetailPage() {
       {/* Item counts */}
       {wf.total_items > 0 && (
         <div className="flex gap-3 mb-4 text-xs flex-wrap">
-          <span className="text-gray-400">
-            <span className="text-white font-medium">{wf.processed_items}</span>
+          <span className="text-gray-600 dark:text-gray-400">
+            <span className="text-gray-900 dark:text-white font-medium">{wf.processed_items}</span>
             <span className="text-gray-500">/{wf.total_items}</span>
             {" "}processed
           </span>
-          <span className="text-gray-600">·</span>
-          <span className="text-gray-400">
-            <span className={`font-medium ${wf.identified_items > 0 ? "text-yellow-400" : "text-white"}`}>
+          <span className="text-gray-500 dark:text-gray-600">·</span>
+          <span className="text-gray-600 dark:text-gray-400">
+            <span className={`font-medium ${wf.identified_items > 0 ? "text-yellow-400" : "text-gray-900 dark:text-white"}`}>
               {wf.identified_items}
             </span>
             {" "}identified
           </span>
           {(wf.failed_fetch_items + wf.failed_upload_items + wf.failed_score_items) > 0 && (
             <>
-              <span className="text-gray-600">·</span>
+              <span className="text-gray-500 dark:text-gray-600">·</span>
               {wf.failed_fetch_items > 0 && (
                 <span className="text-red-400" title="Band download/clip failed before bands could be stored">
                   <span className="font-medium">{wf.failed_fetch_items}</span> fetch failed
@@ -177,27 +177,27 @@ export default function WorkflowDetailPage() {
 
       {/* Monitoring bar (fixed_future only) */}
       {wf.time_mode === "fixed_future" && (
-        <div className="mb-4 bg-gray-900 border border-gray-800 rounded-lg px-4 py-3 flex items-center gap-4 flex-wrap text-xs">
-          <span className="text-gray-400 font-medium">Continuous monitoring</span>
-          <span className="text-gray-600">·</span>
+        <div className="mb-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg px-4 py-3 flex items-center gap-4 flex-wrap text-xs">
+          <span className="text-gray-600 dark:text-gray-400 font-medium">Continuous monitoring</span>
+          <span className="text-gray-500 dark:text-gray-600">·</span>
           {wf.poll_interval_minutes ? (
             <>
-              <span className="text-gray-400">
-                Interval: <span className="text-gray-200">{formatInterval(wf.poll_interval_minutes)}</span>
+              <span className="text-gray-600 dark:text-gray-400">
+                Interval: <span className="text-gray-800 dark:text-gray-200">{formatInterval(wf.poll_interval_minutes)}</span>
               </span>
               {wf.last_checked_at && (
                 <>
-                  <span className="text-gray-600">·</span>
-                  <span className="text-gray-400">
-                    Last checked: <span className="text-gray-200">{fmtDate(wf.last_checked_at)}</span>
+                  <span className="text-gray-500 dark:text-gray-600">·</span>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Last checked: <span className="text-gray-800 dark:text-gray-200">{fmtDate(wf.last_checked_at)}</span>
                   </span>
                 </>
               )}
               {wf.next_run_at && wf.status !== "running" && (
                 <>
-                  <span className="text-gray-600">·</span>
-                  <span className="text-gray-400">
-                    Next run: <span className="text-gray-200">{fmtDate(wf.next_run_at)}</span>
+                  <span className="text-gray-500 dark:text-gray-600">·</span>
+                  <span className="text-gray-600 dark:text-gray-400">
+                    Next run: <span className="text-gray-800 dark:text-gray-200">{fmtDate(wf.next_run_at)}</span>
                   </span>
                 </>
               )}
@@ -209,7 +209,7 @@ export default function WorkflowDetailPage() {
             <button
               onClick={() => fetchNow.mutate(wf.id)}
               disabled={fetchNow.isPending || isRunning}
-              className="px-3 py-1.5 text-xs bg-gray-800 border border-gray-700 text-gray-300 rounded hover:bg-gray-700 disabled:opacity-40 transition-colors"
+              className="px-3 py-1.5 text-xs bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 text-gray-700 dark:text-gray-300 rounded hover:bg-gray-200 dark:hover:bg-gray-700 disabled:opacity-40 transition-colors"
             >
               {fetchNow.isPending ? "Fetching…" : "Fetch now"}
             </button>
@@ -218,10 +218,10 @@ export default function WorkflowDetailPage() {
       )}
 
       {/* Map */}
-      <div className="mb-4 border border-gray-800 rounded-lg overflow-hidden">
+      <div className="mb-4 border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden">
         <button
           onClick={() => setMapOpen((o) => !o)}
-          className="w-full px-4 py-2 flex items-center justify-between text-xs text-gray-400 hover:text-gray-200 bg-gray-900 hover:bg-gray-800/60 transition-colors"
+          className="w-full px-4 py-2 flex items-center justify-between text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 bg-white dark:bg-gray-900 hover:bg-gray-100/70 dark:hover:bg-gray-800/60 transition-colors"
         >
           <span>Map — AOI &amp; scene footprints</span>
           <span>{mapOpen ? "▲" : "▼"}</span>
@@ -238,10 +238,10 @@ export default function WorkflowDetailPage() {
 
       {/* Score time-series chart */}
       {wf.processed_items > 0 && (
-        <div className="mb-4 bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+        <div className="mb-4 bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden">
           <button
             onClick={() => setChartOpen((o) => !o)}
-            className="w-full px-4 py-2 flex items-center justify-between text-xs text-gray-400 hover:text-gray-200 bg-gray-900 hover:bg-gray-800/60 transition-colors"
+            className="w-full px-4 py-2 flex items-center justify-between text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 bg-white dark:bg-gray-900 hover:bg-gray-100/70 dark:hover:bg-gray-800/60 transition-colors"
           >
             <span>Score trends over time</span>
             <span>{chartOpen ? "▲" : "▼"}</span>
@@ -261,8 +261,8 @@ export default function WorkflowDetailPage() {
             key={value || "all"}
             onClick={() => changeFilter(value)}
             className={`text-xs px-3 py-1.5 rounded border transition-colors ${severityFilter === value
-                ? "border-brand-500 text-brand-400 bg-brand-900/30"
-                : "border-gray-700 text-gray-400 hover:border-gray-600"
+                ? "border-brand-500 text-brand-400 bg-brand-900/10 dark:bg-brand-900/30"
+                : "border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-300 dark:hover:border-gray-600"
               }`}
           >
             {label}
@@ -271,7 +271,7 @@ export default function WorkflowDetailPage() {
       </div>
 
       {/* Items table */}
-      {itemsLoading && <p className="text-gray-400 text-sm">Loading items…</p>}
+      {itemsLoading && <p className="text-gray-600 dark:text-gray-400 text-sm">Loading items…</p>}
       {!itemsLoading && items.length === 0 && (
         <div className="text-center py-16 text-gray-500">
           <p>No items yet. Run the workflow to discover scenes.</p>
@@ -283,7 +283,7 @@ export default function WorkflowDetailPage() {
           <div className="overflow-x-auto">
             <table className="w-full text-sm">
               <thead>
-                <tr className="text-left text-xs text-gray-400 border-b border-gray-800">
+                <tr className="text-left text-xs text-gray-600 dark:text-gray-400 border-b border-gray-200 dark:border-gray-800">
                   <th className="pb-2 pr-4">Scene date</th>
                   <th className="pb-2 pr-4">STAC item ID</th>
                   <th className="pb-2 pr-4">Collection</th>
@@ -295,19 +295,19 @@ export default function WorkflowDetailPage() {
               </thead>
               <tbody>
                 {items.map((item) => (
-                  <tr key={item.id} className="border-b border-gray-800/50 hover:bg-gray-900/40">
-                    <td className="py-2.5 pr-4 text-gray-200 whitespace-nowrap">
+                  <tr key={item.id} className="border-b border-gray-200/60 dark:border-gray-800/50 hover:bg-gray-200/50 dark:hover:bg-gray-900/40">
+                    <td className="py-2.5 pr-4 text-gray-800 dark:text-gray-200 whitespace-nowrap">
                       {new Date(item.scene_datetime).toLocaleDateString()}
                     </td>
-                    <td className="py-2.5 pr-4 font-mono text-xs text-gray-300 max-w-xs truncate">
+                    <td className="py-2.5 pr-4 font-mono text-xs text-gray-700 dark:text-gray-300 max-w-xs truncate">
                       {item.stac_item_id}
                     </td>
-                    <td className="py-2.5 pr-4 text-gray-400 text-xs">{item.collection_slug}</td>
+                    <td className="py-2.5 pr-4 text-gray-600 dark:text-gray-400 text-xs">{item.collection_slug}</td>
                     <td className="py-2.5 pr-4"><StatusBadge status={item.status} /></td>
                     <td className="py-2.5 pr-4">
                       <SeverityBadge severity={item.overall_severity} status={item.status} />
                     </td>
-                    <td className="py-2.5 pr-4 text-gray-400">{item.is_bookmarked ? "★" : ""}</td>
+                    <td className="py-2.5 pr-4 text-gray-600 dark:text-gray-400">{item.is_bookmarked ? "★" : ""}</td>
                     <td className="py-2.5">
                       <Link
                         to={`/workflows/${wf.id}/items/${item.id}`}
@@ -329,11 +329,11 @@ export default function WorkflowDetailPage() {
       )}
 
       {/* Infinite scroll sentinel */}
-      <div ref={sentinelRef} className="py-4 text-center text-xs text-gray-600">
+      <div ref={sentinelRef} className="py-4 text-center text-xs text-gray-500 dark:text-gray-600">
         {isFetchingNextPage ? "Loading more…" : hasNextPage ? "" : items.length > 0 ? "All items loaded" : ""}
       </div>
 
-      <div className="mt-2 text-xs text-gray-600">
+      <div className="mt-2 text-xs text-gray-500 dark:text-gray-600">
         Created {fmtDate(wf.created_at)}
         {wf.completed_at ? ` · Completed ${fmtDate(wf.completed_at)}` : ""}
       </div>

@@ -28,7 +28,7 @@ export default function WorkflowListPage() {
         </Link>
       </div>
 
-      {isLoading && <p className="text-gray-400">Loading…</p>}
+      {isLoading && <p className="text-gray-600 dark:text-gray-400">Loading…</p>}
 
       {!isLoading && (!workflows || workflows.length === 0) && (
         <div className="text-center py-20 text-gray-500">
@@ -41,7 +41,7 @@ export default function WorkflowListPage() {
         {workflows?.map((wf) => (
           <div
             key={wf.id}
-            className="bg-gray-900 border border-gray-800 rounded-lg px-5 py-4 flex items-center gap-4"
+            className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg px-5 py-4 flex items-center gap-4"
           >
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-1">
@@ -53,7 +53,7 @@ export default function WorkflowListPage() {
                 </Link>
                 <StatusBadge status={wf.status} />
               </div>
-              <div className="text-xs text-gray-400">
+              <div className="text-xs text-gray-600 dark:text-gray-400">
                 {wf.time_mode} · {fmtDate(wf.time_start)}
                 {wf.time_end ? ` → ${fmtDate(wf.time_end)}` : ""}
               </div>
@@ -71,7 +71,7 @@ export default function WorkflowListPage() {
               )}
               <Link
                 to={`/workflows/${wf.id}`}
-                className="text-xs px-3 py-1.5 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded transition-colors"
+                className="text-xs px-3 py-1.5 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded transition-colors"
               >
                 View
               </Link>
@@ -79,7 +79,7 @@ export default function WorkflowListPage() {
                 onClick={() => {
                   if (confirm("Delete this workflow?")) deleteWf.mutate(wf.id);
                 }}
-                className="text-xs px-3 py-1.5 bg-gray-800 hover:bg-red-900 text-gray-400 hover:text-red-300 rounded transition-colors"
+                className="text-xs px-3 py-1.5 bg-gray-100 dark:bg-gray-800 hover:bg-red-900 text-gray-600 dark:text-gray-400 hover:text-red-300 rounded transition-colors"
               >
                 Delete
               </button>

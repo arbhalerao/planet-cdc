@@ -6,17 +6,17 @@ function BandsTable({ bands }: { bands: CollectionInfo["bands"] }) {
   return (
     <table className="w-full text-xs mt-2">
       <thead>
-        <tr className="text-gray-500 text-left border-b border-gray-800">
+        <tr className="text-gray-500 text-left border-b border-gray-200 dark:border-gray-800">
           <th className="pb-1.5 font-medium">Normalized name</th>
           <th className="pb-1.5 font-medium">Asset key</th>
           <th className="pb-1.5 font-medium">Description</th>
         </tr>
       </thead>
-      <tbody className="divide-y divide-gray-800/60">
+      <tbody className="divide-y divide-gray-200/70 dark:divide-gray-800/60">
         {bands.map((b) => (
           <tr key={b.asset_key}>
             <td className="py-1.5 font-mono text-blue-300">{b.normalized_name}</td>
-            <td className="py-1.5 font-mono text-gray-400">{b.asset_key}</td>
+            <td className="py-1.5 font-mono text-gray-600 dark:text-gray-400">{b.asset_key}</td>
             <td className="py-1.5 text-gray-500">{b.description}</td>
           </tr>
         ))}
@@ -29,7 +29,7 @@ function CollectionCard({ col }: { col: CollectionInfo }) {
   const [bandsOpen, setBandsOpen] = useState(false);
 
   return (
-    <div className="border border-gray-800 rounded-lg overflow-hidden">
+    <div className="border border-gray-200 dark:border-gray-800 rounded-lg overflow-hidden">
       <div className="px-4 py-3">
         <div className="flex items-start justify-between gap-3">
           <div>
@@ -37,24 +37,24 @@ function CollectionCard({ col }: { col: CollectionInfo }) {
             <p className="text-xs font-mono text-gray-500 mt-0.5">{col.slug}</p>
           </div>
           <div className="flex flex-wrap gap-1 justify-end">
-            <span className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded">
+            <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded">
               {col.processing_level}
             </span>
-            <span className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded">
+            <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded">
               {col.sensor_type}
             </span>
-            <span className="text-xs bg-gray-800 text-gray-400 px-2 py-0.5 rounded">
+            <span className="text-xs bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 px-2 py-0.5 rounded">
               {col.resolution_m}m
             </span>
           </div>
         </div>
 
-        <p className="text-xs text-gray-400 mt-2">{col.description}</p>
+        <p className="text-xs text-gray-600 dark:text-gray-400 mt-2">{col.description}</p>
 
         <div className="flex flex-wrap gap-4 mt-2 text-xs text-gray-500">
           <span>
             Cloud cover{" "}
-            <span className={col.cloud_cover_property ? "text-green-400" : "text-gray-600"}>
+            <span className={col.cloud_cover_property ? "text-green-400" : "text-gray-500 dark:text-gray-600"}>
               {col.cloud_cover_property ?? "not reported"}
             </span>
           </span>
@@ -62,10 +62,10 @@ function CollectionCard({ col }: { col: CollectionInfo }) {
         </div>
       </div>
 
-      <div className="border-t border-gray-800">
+      <div className="border-t border-gray-200 dark:border-gray-800">
         <button
           onClick={() => setBandsOpen((o) => !o)}
-          className="w-full px-4 py-2 flex items-center justify-between text-xs text-gray-500 hover:text-gray-300 hover:bg-gray-800/40 transition-colors"
+          className="w-full px-4 py-2 flex items-center justify-between text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300 hover:bg-gray-100/60 dark:hover:bg-gray-800/40 transition-colors"
         >
           <span>Bands</span>
           <span>{bandsOpen ? "▲" : "▼"}</span>
@@ -83,7 +83,7 @@ function CollectionCard({ col }: { col: CollectionInfo }) {
 export default function ProvidersPage() {
   const { data: collections, isLoading } = useCollections();
 
-  if (isLoading) return <div className="p-6 text-gray-400">Loading…</div>;
+  if (isLoading) return <div className="p-6 text-gray-600 dark:text-gray-400">Loading…</div>;
 
   // group by provider
   const byProvider = (collections ?? []).reduce<Record<string, { name: string; cols: CollectionInfo[] }>>(

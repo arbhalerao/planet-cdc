@@ -35,20 +35,20 @@ function defaultOverrides(thresholds: Record<string, ThresholdBand>): ModelThres
 // sub-components
 
 const COMPAT_STYLES: Record<string, string> = {
-  full: "bg-green-900/60 text-green-300 border-green-800",
-  partial: "bg-yellow-900/60 text-yellow-300 border-yellow-800",
-  incompatible: "bg-red-900/50 text-red-400 border-red-900",
+  full: "bg-green-100 text-green-700 border-green-300 dark:bg-green-900/60 dark:text-green-300 dark:border-green-800",
+  partial: "bg-yellow-100 text-yellow-700 border-yellow-300 dark:bg-yellow-900/60 dark:text-yellow-300 dark:border-yellow-800",
+  incompatible: "bg-red-100 text-red-700 border-red-300 dark:bg-red-900/50 dark:text-red-400 dark:border-red-900",
 };
 
 function CompatBadge({ level, reasons }: { level: string; reasons: string[] }) {
-  const cls = COMPAT_STYLES[level] ?? "bg-gray-800 text-gray-400 border-gray-700";
+  const cls = COMPAT_STYLES[level] ?? "bg-gray-100 dark:bg-gray-800 text-gray-600 dark:text-gray-400 border-gray-300 dark:border-gray-700";
   return (
     <span className={`relative group inline-flex items-center gap-1 text-xs px-1.5 py-0.5 rounded border ${cls}`}>
       {level}
       {reasons.length > 0 && level !== "incompatible" && (
         <>
           <span className="cursor-default underline decoration-dotted">!</span>
-          <span className="pointer-events-none absolute left-0 top-full mt-1 z-20 w-60 rounded bg-gray-950 border border-gray-700 px-2 py-1.5 text-xs text-gray-300 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-normal">
+          <span className="pointer-events-none absolute left-0 top-full mt-1 z-20 w-60 rounded bg-gray-50 dark:bg-gray-950 border border-gray-300 dark:border-gray-700 px-2 py-1.5 text-xs text-gray-700 dark:text-gray-300 shadow-lg opacity-0 group-hover:opacity-100 transition-opacity whitespace-normal">
             {reasons.map((r, i) => <span key={i} className="block">{r}</span>)}
           </span>
         </>
@@ -68,18 +68,18 @@ function ThresholdEditor({ model, overrides, onChange }: {
   }
 
   return (
-    <div className="mt-3 border-t border-gray-700 pt-3 space-y-4">
+    <div className="mt-3 border-t border-gray-300 dark:border-gray-700 pt-3 space-y-4">
       <div className="flex items-center justify-between">
-        <span className="text-xs font-medium text-gray-300">Thresholds</span>
+        <span className="text-xs font-medium text-gray-700 dark:text-gray-300">Thresholds</span>
         <button type="button" onClick={() => onChange(defaultOverrides(model.default_thresholds))}
-          className="text-xs text-gray-500 hover:text-gray-300">Reset defaults</button>
+          className="text-xs text-gray-500 hover:text-gray-700 dark:hover:text-gray-300">Reset defaults</button>
       </div>
       {Object.entries(model.default_thresholds).map(([score]) => {
         const ov = overrides[score];
         if (!ov) return null;
         return (
           <div key={score}>
-            <div className="text-xs text-gray-400 mb-2 font-medium">{score}</div>
+            <div className="text-xs text-gray-600 dark:text-gray-400 mb-2 font-medium">{score}</div>
             <div className="grid grid-cols-3 gap-2 text-xs">
               {(["green", "yellow", "red"] as const).map((color) => (
                 <div key={color}>
@@ -87,11 +87,11 @@ function ThresholdEditor({ model, overrides, onChange }: {
                   <div className="flex gap-1 items-center">
                     <input type="number" step="0.01" value={ov[`${color}_min` as keyof ThresholdOverride]}
                       onChange={(e) => set(score, `${color}_min` as keyof ThresholdOverride, e.target.value)}
-                      className="w-full bg-gray-800 border border-gray-700 rounded px-1.5 py-1 text-xs text-gray-200 focus:outline-none focus:border-brand-500" />
-                    <span className="text-gray-600">–</span>
+                      className="w-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded px-1.5 py-1 text-xs text-gray-800 dark:text-gray-200 focus:outline-none focus:border-brand-500" />
+                    <span className="text-gray-500 dark:text-gray-600">–</span>
                     <input type="number" step="0.01" value={ov[`${color}_max` as keyof ThresholdOverride]}
                       onChange={(e) => set(score, `${color}_max` as keyof ThresholdOverride, e.target.value)}
-                      className="w-full bg-gray-800 border border-gray-700 rounded px-1.5 py-1 text-xs text-gray-200 focus:outline-none focus:border-brand-500" />
+                      className="w-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded px-1.5 py-1 text-xs text-gray-800 dark:text-gray-200 focus:outline-none focus:border-brand-500" />
                   </div>
                 </div>
               ))}
@@ -194,18 +194,18 @@ export default function CreateWorkflowPage() {
       <form onSubmit={handleSubmit} className="space-y-6">
 
         {/* 1. Details */}
-        <section className="bg-gray-900 border border-gray-800 rounded-lg p-5 space-y-4">
-          <h2 className="font-medium text-gray-200">Details</h2>
+        <section className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-5 space-y-4">
+          <h2 className="font-medium text-gray-800 dark:text-gray-200">Details</h2>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm mb-1 text-gray-300">Name</label>
+              <label className="block text-sm mb-1 text-gray-700 dark:text-gray-300">Name</label>
               <input required value={name} onChange={(e) => setName(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-500" />
+                className="w-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-500" />
             </div>
             <div>
-              <label className="block text-sm mb-1 text-gray-300">Mode</label>
+              <label className="block text-sm mb-1 text-gray-700 dark:text-gray-300">Mode</label>
               <select value={mode} onChange={(e) => setMode(e.target.value as "historical" | "fixed_future")}
-                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-500">
+                className="w-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-500">
                 <option value="historical">Historical</option>
                 <option value="fixed_future">Fixed future</option>
               </select>
@@ -213,20 +213,20 @@ export default function CreateWorkflowPage() {
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div>
-              <label className="block text-sm mb-1 text-gray-300">Time start</label>
+              <label className="block text-sm mb-1 text-gray-700 dark:text-gray-300">Time start</label>
               <input type="date" required value={timeStart} onChange={(e) => setTimeStart(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-500" />
+                className="w-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-500" />
             </div>
             <div>
-              <label className="block text-sm mb-1 text-gray-300">Time end</label>
+              <label className="block text-sm mb-1 text-gray-700 dark:text-gray-300">Time end</label>
               <input type="date" required value={timeEnd} onChange={(e) => setTimeEnd(e.target.value)}
-                className="w-full bg-gray-800 border border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-500" />
+                className="w-full bg-gray-100 dark:bg-gray-800 border border-gray-300 dark:border-gray-700 rounded px-3 py-2 text-sm focus:outline-none focus:border-brand-500" />
             </div>
           </div>
 
           {mode === "fixed_future" && (
             <div>
-              <label className="block text-sm mb-1 text-gray-300">
+              <label className="block text-sm mb-1 text-gray-700 dark:text-gray-300">
                 Monitor interval
                 <span className="ml-1.5 text-gray-500 font-normal text-xs">— how often to fetch new scenes</span>
               </label>
@@ -244,8 +244,8 @@ export default function CreateWorkflowPage() {
                     type="button"
                     onClick={() => setPollInterval(value)}
                     className={`px-3 py-1.5 rounded border text-xs transition-colors ${pollInterval === value
-                      ? "border-brand-500 bg-brand-950/30 text-white"
-                      : "border-gray-700 text-gray-400 hover:border-gray-500"
+                      ? "border-brand-500 bg-brand-950/30 text-gray-900 dark:text-white"
+                      : "border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-500"
                       }`}
                   >
                     {label}
@@ -260,8 +260,8 @@ export default function CreateWorkflowPage() {
         </section>
 
         {/* 2. AOI */}
-        <section className="bg-gray-900 border border-gray-800 rounded-lg p-5 space-y-3">
-          <h2 className="font-medium text-gray-200">Area of Interest</h2>
+        <section className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-5 space-y-3">
+          <h2 className="font-medium text-gray-800 dark:text-gray-200">Area of Interest</h2>
           <Map
             geometry={drawnGeometry}
             onDraw={(geom, tool) => { setDrawnGeometry(geom); setDrawnWithTool(tool); if (tool === "point") setAoiFilterMode("intersects"); }}
@@ -271,7 +271,7 @@ export default function CreateWorkflowPage() {
 
           {/* Scene filter mode */}
           <div>
-            <p className="text-xs text-gray-400 mb-2">Scene filter</p>
+            <p className="text-xs text-gray-600 dark:text-gray-400 mb-2">Scene filter</p>
             {isPoint ? (
               <p className="text-xs text-gray-500">Point AOI — scenes containing the point (intersects).</p>
             ) : (
@@ -285,8 +285,8 @@ export default function CreateWorkflowPage() {
                     type="button"
                     onClick={() => setAoiFilterMode(value)}
                     className={`flex-1 px-3 py-2 rounded border text-left transition-colors ${aoiFilterMode === value
-                      ? "border-brand-500 bg-brand-950/30 text-white"
-                      : "border-gray-700 text-gray-400 hover:border-gray-500"
+                      ? "border-brand-500 bg-brand-950/30 text-gray-900 dark:text-white"
+                      : "border-gray-300 dark:border-gray-700 text-gray-600 dark:text-gray-400 hover:border-gray-400 dark:hover:border-gray-500"
                       }`}
                   >
                     <div className="text-xs font-medium">{label}</div>
@@ -299,21 +299,21 @@ export default function CreateWorkflowPage() {
         </section>
 
         {/* 3. Model */}
-        <section className="bg-gray-900 border border-gray-800 rounded-lg p-5 space-y-3">
-          <h2 className="font-medium text-gray-200">Model</h2>
+        <section className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-5 space-y-3">
+          <h2 className="font-medium text-gray-800 dark:text-gray-200">Model</h2>
           <p className="text-xs text-gray-500">Select one model. Compatible data sources will be shown below.</p>
           <div className="space-y-2">
             {models?.map((m) => {
               const selected = selectedModelSlug === m.slug;
               return (
-                <div key={m.slug} className={`rounded border transition-colors ${selected ? "border-brand-600 bg-brand-950/20" : "border-gray-700"}`}>
+                <div key={m.slug} className={`rounded border transition-colors ${selected ? "border-brand-600 bg-brand-950/20" : "border-gray-300 dark:border-gray-700"}`}>
                   <label className="flex items-start gap-3 p-3 cursor-pointer">
                     <input type="radio" name="model" checked={selected}
                       onChange={() => selected ? clearModel() : selectModel(m.slug)}
                       className="mt-0.5 accent-brand-500" />
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium">{m.name}</div>
-                      <div className="text-xs text-gray-400 mt-0.5">{m.description}</div>
+                      <div className="text-xs text-gray-600 dark:text-gray-400 mt-0.5">{m.description}</div>
                       <div className="flex flex-wrap gap-3 mt-1 text-xs text-gray-500">
                         <span>Bands: {m.required_bands.join(", ")}</span>
                         <span>{m.max_cloud_cover != null ? `≤${m.max_cloud_cover}% cloud` : "no cloud filter"}</span>
@@ -322,7 +322,7 @@ export default function CreateWorkflowPage() {
                     {selected && (
                       <button type="button"
                         onClick={(e) => { e.preventDefault(); setThresholdsOpen((o) => !o); }}
-                        className="text-xs text-gray-400 hover:text-gray-200 whitespace-nowrap mt-0.5">
+                        className="text-xs text-gray-600 dark:text-gray-400 hover:text-gray-800 dark:hover:text-gray-200 whitespace-nowrap mt-0.5">
                         {thresholdsOpen ? "Hide thresholds ▲" : "Edit thresholds ▼"}
                       </button>
                     )}
@@ -343,8 +343,8 @@ export default function CreateWorkflowPage() {
         </section>
 
         {/* 4. Data sources */}
-        <section className="bg-gray-900 border border-gray-800 rounded-lg p-5 space-y-3">
-          <h2 className="font-medium text-gray-200">Data sources</h2>
+        <section className="bg-white dark:bg-gray-900 border border-gray-200 dark:border-gray-800 rounded-lg p-5 space-y-3">
+          <h2 className="font-medium text-gray-800 dark:text-gray-200">Data sources</h2>
 
           {!selectedModel ? (
             <p className="text-sm text-gray-500">Select a model above to see compatible data sources.</p>
@@ -365,8 +365,8 @@ export default function CreateWorkflowPage() {
                       key={col.slug}
                       className={`flex items-start gap-3 p-3 rounded border transition-colors ${
                         isIncompat
-                          ? "border-gray-800 opacity-40 cursor-not-allowed"
-                          : "border-gray-700 cursor-pointer hover:border-gray-600"
+                          ? "border-gray-200 dark:border-gray-800 opacity-40 cursor-not-allowed"
+                          : "border-gray-300 dark:border-gray-700 cursor-pointer hover:border-gray-300 dark:hover:border-gray-600"
                       }`}
                       title={isIncompat ? "This collection is not supported by this model" : undefined}
                     >
@@ -405,7 +405,7 @@ export default function CreateWorkflowPage() {
             {createWorkflow.isPending ? "Creating…" : "Create workflow"}
           </button>
           <button type="button" onClick={() => navigate("/workflows")}
-            className="px-6 py-2 bg-gray-800 hover:bg-gray-700 text-gray-300 rounded text-sm transition-colors">
+            className="px-6 py-2 bg-gray-100 dark:bg-gray-800 hover:bg-gray-200 dark:hover:bg-gray-700 text-gray-700 dark:text-gray-300 rounded text-sm transition-colors">
             Cancel
           </button>
           {!canSubmit && name && (
