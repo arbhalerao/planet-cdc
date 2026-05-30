@@ -5,6 +5,7 @@ import type {
   CollectionInfo,
   ModelInfo,
   Review,
+  TimeseriesResponse,
   Workflow,
   WorkflowItemDetail,
   WorkflowItemPage,
@@ -146,6 +147,16 @@ export function useRemoveBookmark(workflowId: string, itemId: string) {
       qc.invalidateQueries({ queryKey: ["workflow-item", workflowId, itemId] });
       qc.invalidateQueries({ queryKey: ["workflow-items", workflowId] });
     },
+  });
+}
+
+// Timeseries
+
+export function useWorkflowTimeseries(workflowId: string) {
+  return useQuery({
+    queryKey: ["workflow-timeseries", workflowId],
+    queryFn: () => api.get<TimeseriesResponse>(`/workflows/${workflowId}/timeseries`),
+    enabled: !!workflowId,
   });
 }
 

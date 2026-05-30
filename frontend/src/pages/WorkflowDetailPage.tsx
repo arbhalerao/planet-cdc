@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from "react";
 import { Link, useNavigate, useParams } from "react-router-dom";
-import { useFetchNow, useRunWorkflow, useWorkflow, useWorkflowItems } from "../api/queries";
+import { useFetchNow, useModels, useRunWorkflow, useWorkflow, useWorkflowItems } from "../api/queries";
 import SeverityBadge from "../components/SeverityBadge";
 import StatusBadge from "../components/StatusBadge";
 import MapViewer from "../components/MapViewer";
 import type { MapViewerItem } from "../components/MapViewer";
+import ScoreChart from "../components/ScoreChart";
 
 function formatInterval(minutes: number): string {
   if (minutes < 60) return `${minutes}m`;
@@ -32,9 +33,11 @@ export default function WorkflowDetailPage() {
   const navigate = useNavigate();
   const [severityFilter, setSeverityFilter] = useState("");
   const [mapOpen, setMapOpen] = useState(true);
+  const [chartOpen, setChartOpen] = useState(true);
   const sentinelRef = useRef<HTMLDivElement>(null);
 
   const { data: wf, isLoading: wfLoading } = useWorkflow(id!);
+  const { data: models } = useModels();
   const isRunning = wf?.status === "running";
 
   const {
@@ -232,6 +235,24 @@ export default function WorkflowDetailPage() {
           />
         )}
       </div>
+
+      {/* Score time-series chart */}
+      {wf.processed_items > 0 && (
+        <div className="mb-4 bg-gray-900 border border-gray-800 rounded-lg overflow-hidden">
+          <button
+            onClick={() => setChartOpen((o) => !o)}
+            className="w-full px-4 py-2 flex items-center justify-between text-xs text-gray-400 hover:text-gray-200 bg-gray-900 hover:bg-gray-800/60 transition-colors"
+          >
+            <span>Score trends over time</span>
+            <span>{chartOpen ? "▲" : "▼"}</span>
+          </button>
+          {chartOpen && (
+            <div className="px-4 pb-4 pt-1">
+              <ScoreChart workflowId={wf.id} models={models} />
+            </div>
+          )}
+        </div>
+      )}
 
       {/* Severity filter */}
       <div className="flex gap-2 mb-4">

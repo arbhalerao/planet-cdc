@@ -156,6 +156,20 @@ export interface ThresholdOverrideInput {
   red_min: number; red_max: number;
 }
 
+export interface TimeseriesPoint {
+  item_id: string;
+  stac_item_id: string;
+  scene_datetime: string;
+  score_name: string;
+  score_value: number;
+  severity: string;
+}
+
+export interface TimeseriesResponse {
+  available_scores: string[];
+  points: TimeseriesPoint[];
+}
+
 export interface WorkerTask {
   id: string;
   name: string;

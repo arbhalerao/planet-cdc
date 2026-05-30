@@ -84,3 +84,17 @@ class BookmarkResponse(BaseModel):
     workflow_item_id: uuid.UUID
     notes: str | None
     created_at: datetime
+
+
+class TimeseriesPoint(BaseModel):
+    item_id: uuid.UUID
+    stac_item_id: str
+    scene_datetime: datetime
+    score_name: str
+    score_value: float
+    severity: str
+
+
+class TimeseriesResponse(BaseModel):
+    available_scores: list[str]
+    points: list[TimeseriesPoint]

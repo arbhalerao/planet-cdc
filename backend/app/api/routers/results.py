@@ -20,6 +20,8 @@ from app.schemas.results import (
     ReviewCreate,
     ReviewResponse,
     StacItemResponse,
+    TimeseriesPoint,
+    TimeseriesResponse,
     WorkflowItemDetail,
     WorkflowItemPage,
     WorkflowItemSummary,
@@ -166,6 +168,49 @@ async def list_items(
         page_size=page_size,
         pages=max(1, math.ceil(total / page_size)),
     )
+
+
+@router.get("/workflows/{workflow_id}/timeseries", response_model=TimeseriesResponse)
+async def get_timeseries(workflow_id: uuid.UUID, db: AsyncSession = Depends(get_db)):
+    await _get_workflow(workflow_id, db)
+
+    rows = (
+        await db.execute(
+            select(
+                WorkflowItem.id,
+                StacItem.stac_item_id,
+                StacItem.datetime,
+                ModelScore.score_name,
+                ModelScore.score_value,
+                ModelScore.severity,
+            )
+            .join(StacItem, StacItem.id == WorkflowItem.stac_item_id)
+            .join(ModelRun, ModelRun.workflow_item_id == WorkflowItem.id)
+            .join(ModelScore, ModelScore.model_run_id == ModelRun.id)
+            .where(
+                WorkflowItem.workflow_id == workflow_id,
+                WorkflowItem.status == "processed",
+            )
+            .order_by(StacItem.datetime)
+        )
+    ).all()
+
+    score_names: set[str] = set()
+    points: list[TimeseriesPoint] = []
+    for item_id, stac_item_id, dt, score_name, score_value, severity in rows:
+        score_names.add(score_name)
+        points.append(
+            TimeseriesPoint(
+                item_id=item_id,
+                stac_item_id=stac_item_id,
+                scene_datetime=dt,
+                score_name=score_name,
+                score_value=score_value,
+                severity=severity,
+            )
+        )
+
+    return TimeseriesResponse(available_scores=sorted(score_names), points=points)
 
 
 @router.get("/workflows/{workflow_id}/items/{item_id}", response_model=WorkflowItemDetail)
